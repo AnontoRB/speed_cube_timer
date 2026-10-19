@@ -24,3 +24,5 @@ body.run #tz{background:transparent}
 #rs{grid-template-columns:repeat(5,minmax(0,1fr))}#rs div{padding:8px 6px}
 .alg{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid color-mix(in srgb,var(--fg) 15%,var(--bg))}.alg b{min-width:64px}.alg code{text-align:right;white-space:pre-line;font:13px ui-monospace,Menlo,Consolas,monospace}
 dialog h4{margin:14px 0 2px;color:var(--ac)}.tabs{margin:8px 0;flex-wrap:wrap}.lead{color:var(--mut);margin:6px 0}
+.alg{align-items:center;cursor:pointer}.alg input{width:18px;height:18px;flex:none;accent-color:var(--ac)}.alg code{flex:1}.alg:has(input:checked) b{color:var(--rd)}
+#rs .g{color:var(--rd)}#rs .r{color:#e74c3c}
