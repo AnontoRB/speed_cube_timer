@@ -21,10 +21,14 @@ function applyTheme(){const r=document.documentElement.style,s=S.set;for(const k
 let scr='',mode='idle',holding=false,ready=false,ht,t0=0,i0=0,pen=0,b8=0,b12=0;
 const newScr=()=>{scr=scramble(S.cur);$('#scr').textContent=scr};
 function beep(f){if(!S.set.snd)return;try{const c=new AudioContext(),o=c.createOscillator();o.frequency.value=f;o.connect(c.destination);o.start();setTimeout(()=>{o.stop();c.close()},180)}catch(e){}}
+const ORD=['1st','2nd','3rd','4th','5th'];
+function rstrip(d){let L=S.set.auto?d.solves.filter(x=>x.r===d.round):d.solves.slice(-5);if(S.set.auto&&!L.length&&d.round>1)L=d.solves.filter(x=>x.r===d.round-1);
+ let lo=-1,hi=-1;if(L.length===5){const v=L.map(val);hi=v.indexOf(Math.max(...v));lo=v.indexOf(Math.min(...v));if(lo===hi)lo=-1}
+ $('#rs').innerHTML=ORD.map((o,i)=>{const s=L[i],t=s?fmtS(s):'–';return`<div><small>${o} solve</small><b>${i===lo||i===hi?'('+t+')':t}</b></div>`}).join('')}
 function render(){
  $('#ev').innerHTML=EV.map(e=>`<button data-a="ev" data-i="${e[0]}" class="${e[0]===S.cur?'on':''}">${e[1]}</button>`).join('');
  const d=D(),[best,mean,cur,bao]=stats(arr(d.solves.map(val))),bx=(l,x)=>`<div><small>${l}</small><b>${fx(x)}</b></div>`;
- $('#st').innerHTML=bx('Best',best)+bx('Mean',mean)+bx('Current ao5',cur)+bx('Best ao5',bao)+`<div><small>Round</small><b>${S.set.auto?d.round+' · '+d.solves.filter(x=>x.r===d.round).length+'/5':'off'}</b></div>`;
+ rstrip(d);$('#st').innerHTML=bx('Best',best)+bx('Mean',mean)+bx('Current ao5',cur)+bx('Best ao5',bao)+`<div><small>Round</small><b>${S.set.auto?d.round+' · '+d.solves.filter(x=>x.r===d.round).length+'/5':'off'}</b></div>`;
  $('#cnt').textContent=name()+' · '+d.solves.length+' solves';
  $('#tl').innerHTML=d.solves.map((s,i)=>`<button data-a="solve" data-i="${i}"><small>${i+1}</small> ${fmtS(s)}</button>`).reverse().join('')||'<small>No solves yet.</small>';
  $('#rd').innerHTML=[...d.rounds].reverse().map(r=>`<div><b>Round ${r.n}: ${fx(r.res)}</b> (ao5) · ${r.v.join(', ')}</div>`).join('');
@@ -50,7 +54,7 @@ document.addEventListener('keydown',e=>{if(dl.open)return;if(e.code==='Escape'&&
 document.addEventListener('keyup',e=>{if(e.code==='Space'){e.preventDefault();if(!dl.open)up()}});
 document.addEventListener('pointerdown',e=>{if(dl.open)return;if(mode==='run'){down();return}if(e.target.closest('#tz'))down()});
 ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{if(!dl.open)up()}));
-const open=h=>{dl.innerHTML=h+'<div class="row" style="margin-top:12px"><span class="sp"></span><button data-a="close">Close</button></div>';dl.showModal()};
+const open=h=>{dl.innerHTML=h+'<div class="row" style="margin-top:12px"><span class="sp"></span><button data-a="close">Close</button></div>';if(!dl.open)dl.showModal()};
 const RULES=[['a','New scramble for every attempt (Rust generates it).'],['a','15 s inspection with beeps at 8 s and 12 s (can be turned off).'],['a','Hold, wait for green, release to start. Any key or tap stops.'],['a','Start between 15 and 17 s = +2. Past 17 s = DNF.'],['a','Manual +2 and DNF buttons on every solve for judge penalties.'],['a','Ao5: best and worst dropped, two or more DNFs = DNF. Times are truncated, not rounded.'],['h','3x3 OH: solve and inspect with one hand only.'],['h','Scrambles are random-move, not the official random-state scrambler.']];
 function settings(){const s=S.set,c=(k,l)=>`<label class="set">${l}<input type="checkbox" data-k="${k}" ${s[k]?'checked':''}></label>`,r=(k,l,a,b,st)=>`<label class="set">${l}: <span id="v_${k}">${s[k]}</span><input type="range" data-k="${k}" min="${a}" max="${b}" step="${st}" value="${s[k]}"></label>`,col=(k,l)=>`<label class="set">${l}<input type="color" data-k="${k}" value="${s[k]}"></label>`;
  open(`<h3>Settings</h3><label class="set">Theme<select data-k="theme">${['dark','light','custom'].map(x=>`<option ${s.theme===x?'selected':''}>${x}</option>`).join('')}</select></label>${col('bg','Background')}${col('fg','Text')}${col('ac','Accent')}${col('rd','Ready color')}${r('fs','Timer size',40,200,2)}${r('ss','Scramble size',12,36,1)}${r('hold','Hold time (ms)',0,1000,50)}${c('insp','15 s inspection')}${c('snd','Inspection beeps')}${c('auto','Auto rounds (new round after each ao5)')}${c('focus','Focus mode (hide everything while solving)')}${c('hide','Hide time while solving')}${c('showScr','Show scramble')}<label class="set">Decimals<select data-k="dec"><option ${s.dec==2?'selected':''}>2</option><option ${s.dec==3?'selected':''}>3</option></select></label>`)}
@@ -59,6 +63,7 @@ dl.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;const s=
 let sel=-1;
 dl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a,d=D(),s=d.solves[sel];
  if(a==='close')dl.close();
+ else if(a==='cf')cfop(b.dataset.t);
  else if(a==='p2'){s.p=s.p===2?0:2;save();render();dl.close()}
  else if(a==='dnf'){s.p=s.p==='D'?0:'D';save();render();dl.close()}
  else if(a==='del'){d.solves.splice(sel,1);save();render();dl.close()}
@@ -67,8 +72,13 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||
  if(a==='ev'&&mode==='idle'){S.cur=b.dataset.i;save();newScr();tm.textContent='0.00';$('#msg').textContent='';render()}
  else if(a==='rules')open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">'+RULES.map(r=>`<li><span class="tg ${r[0]=='h'?'h':''}">${r[0]=='a'?'applied':'honor'}</span>${r[1]}</li>`).join('')+'</ul>');
  else if(a==='set')settings();
+ else if(a==='cfop')cfop('cross');
+ else if(a==='beg')beg();
  else if(a==='solve'){sel=+b.dataset.i;const s=D().solves[sel];open(`<h3>#${sel+1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small><div class="row" style="margin-top:10px"><button data-a="p2" class="${s.p===2?'on':''}">+2</button><button data-a="dnf" class="${s.p==='D'?'on':''}">DNF</button><button data-a="del">Delete</button></div>`)}
  else if(a==='delall')open(`<h3>Delete all ${name()} times?</h3><p>This removes every solve and round for this event. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`)});
 applyTheme();newScr();render();
 // Optional: use the Rust/WebAssembly versions when pkg/ is built and served over http.
 (async()=>{try{const m=await import('./pkg/cubetimer.js');await m.default();({scramble,ao5,stats,insp,insp_text}=m);F=m.fmt;render();console.log('Rust core loaded')}catch(e){console.log('Using JavaScript core')}})();
+
+function cfop(t){const d=CFOP[t];open(`<h3>CFOP</h3><div class="row tabs">${Object.keys(CFOP).map(k=>`<button data-a="cf" data-t="${k}" class="${k===t?'on':''}">${k.toUpperCase()}</button>`).join('')}</div><p class="lead">${d.info}</p><ul style="padding-left:18px">${d.tips.map(x=>`<li>${x}</li>`).join('')}</ul>${d.algs.map(a=>a[0]==='#'?`<h4>${a[1]}</h4>`:`<div class="alg"><b>${a[0]}</b><code>${a[1]}</code></div>`).join('')}`);dl.scrollTop=0}
+function beg(){open('<h3>Beginner method (layer by layer)</h3><p class="lead">'+BEG.info+'</p>'+BEG.steps.map(s=>`<h4>${s[0]}</h4><p style="margin:2px 0">${s[1]}</p>${s[2]?`<div class="alg"><b>Alg</b><code>${s[2]}</code></div>`:''}`).join(''));dl.scrollTop=0}
