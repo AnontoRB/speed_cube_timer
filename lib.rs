@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 fn rnd(n: usize) -> usize {
     (js_sys::Math::random() * n as f64) as usize
 }
+
 fn pick<'a>(a: &[&'a str]) -> &'a str {
     a[rnd(a.len())]
 }
@@ -72,8 +73,16 @@ pub fn ao5(v: &[f64]) -> f64 {
 pub fn stats(v: &[f64]) -> Vec<f64> {
     let fin: Vec<f64> = v.iter().cloned().filter(|x| x.is_finite()).collect();
     let best = fin.iter().cloned().fold(f64::NAN, f64::min);
-    let mean = if fin.is_empty() { f64::NAN } else { fin.iter().sum::<f64>() / fin.len() as f64 };
-    let cur = if v.len() >= 5 { ao5(&v[v.len() - 5..]) } else { f64::NAN };
+    let mean = if fin.is_empty() {
+        f64::NAN
+    } else {
+        fin.iter().sum::<f64>() / fin.len() as f64
+    };
+    let cur = if v.len() >= 5 {
+        ao5(&v[v.len() - 5..])
+    } else {
+        f64::NAN
+    };
     let bao = v.windows(5).map(ao5).fold(f64::NAN, f64::min);
     vec![best, mean, cur, bao]
 }
@@ -81,10 +90,20 @@ pub fn stats(v: &[f64]) -> Vec<f64> {
 /// Inspection penalty: 0 = fine, 2 = +2 (15-17 s), -1 = DNF (17 s or more).
 #[wasm_bindgen]
 pub fn insp(sec: f64) -> i8 {
-    if sec >= 17.0 { -1 } else if sec > 15.0 { 2 } else { 0 }
+    if sec >= 17.0 {
+        -1
+    } else if sec > 15.0 {
+        2
+    } else {
+        0
+    }
 }
 
 #[wasm_bindgen]
 pub fn insp_text(sec: f64) -> String {
-    if sec < 15.0 { format!("{}", (15.0 - sec).ceil() as i32) } else { "+2".into() }
+    if sec < 15.0 {
+        format!("{}", (15.0 - sec).ceil() as i32)
+    } else {
+        "+2".into()
+    }
 }

@@ -32,23 +32,36 @@ fn mime(p: &Path) -> Option<&'static str> {
 
 fn handle(mut s: TcpStream, lock: Arc<Mutex<()>>, file: Arc<PathBuf>) {
     let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(10)));
-    let mut r = BufReader::new(match s.try_clone() { Ok(c) => c, Err(_) => return });
+    let mut r = BufReader::new(match s.try_clone() {
+        Ok(c) => c,
+        Err(_) => return,
+    });
     let mut line = String::new();
-    if r.read_line(&mut line).unwrap_or(0) == 0 { return; }
+    if r.read_line(&mut line).unwrap_or(0) == 0 {
+        return;
+    }
     let mut it = line.split_whitespace();
     let method = it.next().unwrap_or("").to_string();
     let target = it.next().unwrap_or("/").to_string();
     let mut len = 0usize;
     loop {
         let mut h = String::new();
-        if r.read_line(&mut h).unwrap_or(0) == 0 || h.trim().is_empty() { break; }
+        if r.read_line(&mut h).unwrap_or(0) == 0 || h.trim().is_empty() {
+            break;
+        }
         if let Some((k, v)) = h.split_once(':') {
-            if k.eq_ignore_ascii_case("content-length") { len = v.trim().parse().unwrap_or(0); }
+            if k.eq_ignore_ascii_case("content-length") {
+                len = v.trim().parse().unwrap_or(0);
+            }
         }
     }
-    if len > MAX_BODY { return respond(&mut s, "413 Payload Too Large", "text/plain", b"too big"); }
+    if len > MAX_BODY {
+        return respond(&mut s, "413 Payload Too Large", "text/plain", b"too big");
+    }
     let mut body = vec![0u8; len];
-    if len > 0 && r.read_exact(&mut body).is_err() { return; }
+    if len > 0 && r.read_exact(&mut body).is_err() {
+        return;
+    }
 
     let path = target.split('?').next().unwrap_or("/");
     if path == "/api/state" {
@@ -59,7 +72,9 @@ fn handle(mut s: TcpStream, lock: Arc<Mutex<()>>, file: Arc<PathBuf>) {
                 respond(&mut s, "200 OK", "application/json", &b)
             }
             "PUT" | "POST" => {
-                if body.first() != Some(&b'{') { return respond(&mut s, "400 Bad Request", "text/plain", b"bad body"); }
+                if body.first() != Some(&b'{') {
+                    return respond(&mut s, "400 Bad Request", "text/plain", b"bad body");
+                }
                 let tmp = file.with_extension("tmp");
                 if fs::write(&tmp, &body).and_then(|_| fs::rename(&tmp, &*file)).is_ok() {
                     respond(&mut s, "200 OK", "application/json", b"{\"ok\":true}")
@@ -71,14 +86,22 @@ fn handle(mut s: TcpStream, lock: Arc<Mutex<()>>, file: Arc<PathBuf>) {
         }
         return;
     }
-    if method != "GET" { return respond(&mut s, "405 Method Not Allowed", "text/plain", b"no"); }
-    let rel = if path == "/" { "index.html" } else { path.trim_start_matches('/') };
+    if method != "GET" {
+        return respond(&mut s, "405 Method Not Allowed", "text/plain", b"no");
+    }
+    let rel = if path == "/" {
+        "index.html"
+    } else {
+        path.trim_start_matches('/')
+    };
     let p = PathBuf::from(rel);
     let bad = p.components().any(|c| match c {
         Component::Normal(n) => n.to_string_lossy().starts_with('.'),
         _ => true,
     });
-    if bad { return respond(&mut s, "400 Bad Request", "text/plain", b"bad path"); }
+    if bad {
+        return respond(&mut s, "400 Bad Request", "text/plain", b"bad path");
+    }
     match (mime(&p), fs::read(&p)) {
         (Some(m), Ok(b)) => respond(&mut s, "200 OK", m, &b),
         _ => respond(&mut s, "404 Not Found", "text/plain", b"not found"),
@@ -87,10 +110,16 @@ fn handle(mut s: TcpStream, lock: Arc<Mutex<()>>, file: Arc<PathBuf>) {
 
 fn main() {
     let port = env::var("PORT").unwrap_or_else(|_| "8000".into());
-    let file = Arc::new(PathBuf::from(env::var("DATA_FILE").unwrap_or_else(|_| "data.json".into())));
+    let file = Arc::new(PathBuf::from(
+        env::var("DATA_FILE").unwrap_or_else(|_| "data.json".into()),
+    ));
     let lock = Arc::new(Mutex::new(()));
     let l = TcpListener::bind(format!("0.0.0.0:{}", port)).expect("cannot open the port");
-    println!("CubeTimer running on http://localhost:{}  (saved data: {})", port, file.display());
+    println!(
+        "CubeTimer running on http://localhost:{}  (saved data: {})",
+        port,
+        file.display()
+    );
     for s in l.incoming().flatten() {
         let (lk, f) = (lock.clone(), file.clone());
         thread::spawn(move || handle(s, lk, f));
