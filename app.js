@@ -88,7 +88,13 @@ const save = () => {
   push();
 };
 
-const D = () => S.data[S.cur] || (S.data[S.cur] = { solves: [], rounds: [], round: 1 }),
+let view = null; // a past day (YYYY-MM-DD) opened read-only from the calendar, or null for today
+const viewData = () => {
+  const h = (S.hist[view] || {})[S.cur];
+  return h ? { solves: h.solves, rounds: h.rounds, round: h.round || h.rounds.length + 1 } : { solves: [], rounds: [], round: 1 };
+};
+
+const D = () => view ? viewData() : S.data[S.cur] || (S.data[S.cur] = { solves: [], rounds: [], round: 1 }),
       name = () => curCube().n;
 
 const val = s => s.p === 'D' ? Infinity : s.t + (s.p === 2 ? 2000 : 0);
@@ -113,7 +119,7 @@ function rollover() {
       const e = S.data[id];
       if (!e.solves.length) continue;
       const h = (S.hist[key] = S.hist[key] || {}), o = h[id];
-      h[id] = o ? { solves: o.solves.concat(e.solves), rounds: o.rounds.concat(e.rounds) } : { solves: e.solves, rounds: e.rounds };
+      h[id] = o ? { solves: o.solves.concat(e.solves), rounds: o.rounds.concat(e.rounds), round: Math.max(o.round || 1, e.round) } : { solves: e.solves, rounds: e.rounds, round: e.round };
       moved = true;
     }
     if (moved) S.data = {};
@@ -143,12 +149,13 @@ function calendar(key) {
     const c = Object.values(dayData(k)).reduce((a, e) => a + e.solves.length, 0);
     cells += `<button data-a="calday" data-k="${k}" class="${k === cal.sel ? 'on' : c ? 'has' : ''}${k === today ? ' td' : ''}">${i}${c ? `<small>${c}</small>` : ''}</button>`;
   }
-  const day = dayData(cal.sel), ids = Object.keys(day),
+  const day = dayData(cal.sel), ids = Object.keys(day), tile = (l, x) => `<div><small>${l}</small><b>${x}</b></div>`,
         det = ids.length ? ids.map(id => {
-          const e = day[id], v = e.solves.map(val), [b, m] = stats(arr(v)), tot = v.filter(isFinite).reduce((a, c) => a + c, 0), cn = allCubes().find(c => c.id === id);
-          return `<div class="dsum"><b>${cn ? cn.n : id}</b> · ${e.solves.length} solves · best ${fx(b)} · mean ${fx(m)} · total ${dur(tot)}<div class="dtl">${e.solves.map(fmtS).join(', ')}</div></div>`;
-        }).join('') : '<p class="lead">No solves this day.</p>';
-  open(`<h3>Calendar</h3><div class="row"><button data-a="calm" data-d="-1">&lsaquo;</button><b style="flex:1;text-align:center">${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button data-a="calm" data-d="1">&rsaquo;</button></div><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}${cells}</div><h4>${new Date(cal.sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>${det}`);
+          const e = day[id], v = e.solves.map(val), [b, m, , ba] = stats(arr(v)), tot = v.filter(isFinite).reduce((a, c) => a + c, 0), cn = allCubes().find(c => c.id === id);
+          return `<div class="dcard"><h4>${cn ? cn.n : id}</h4><div class="dtiles">${tile('Solves', e.solves.length)}${tile('Best', fx(b))}${tile('Mean', fx(m))}${tile('Best ao5', fx(ba))}${tile('Time spent', dur(tot))}</div><div class="chips">${e.solves.map((s, i) => `<span><small>${i + 1}</small> ${fmtS(s)}</span>`).join('')}</div></div>`;
+        }).join('') : '<p class="lead">No solves this day.</p>',
+        long = new Date(cal.sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  open(`<h3>Calendar</h3><div class="row"><button data-a="calm" data-d="-1">&lsaquo;</button><b style="flex:1;text-align:center">${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button data-a="calm" data-d="1">&rsaquo;</button></div><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}${cells}</div><div class="row dayhead"><b>${long}</b><span class="sp"></span><button class="on" data-a="openday" data-k="${cal.sel}">${cal.sel === S.day ? 'Go to today' : 'Open this day'}</button></div>${det}`);
 }
 
 function applyTheme() {
@@ -163,7 +170,7 @@ let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0,
 
 const newScr = () => {
   scr = genScr(curCube());
-  $('#scr').textContent = scr || '(this cube has no scramble)';
+  $('#scr').textContent = view ? '' : (scr || '(this cube has no scramble)');
 };
 
 function beep(f) {
@@ -205,7 +212,16 @@ function render() {
   rstrip(d);
   $('#st').innerHTML = bx('Best', best) + bx('Mean', mean) + bx('Current ao5', cur) + bx('Best ao5', bao) + `<div><small>Round</small><b>${S.set.auto ? d.round + ' · ' + d.solves.filter(x => x.r === d.round).length + '/5' : 'off'}</b></div>`;
   $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves today';
-  $('#dt').textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  $('#dt').textContent = (view ? new Date(view + 'T00:00:00') : new Date()).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  $('#dt').classList.toggle('on', !!view);
+  document.body.classList.toggle('view', !!view);
+  const vb = $('#vb');
+  vb.hidden = !view;
+  if (view) {
+    vb.innerHTML = `<span>Viewing <b>${new Date(view + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</b> · read-only</span><span class="sp"></span><button data-a="today">Back to today</button>`;
+    tm.textContent = d.solves.length ? fmtS(d.solves[d.solves.length - 1]) : '–';
+    $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
+  }
   $('#rd').innerHTML = [...d.rounds].reverse().map(r => `<div><b>Round ${r.n}: ${fx(r.res)}</b> (ao5) · ${r.v.join(', ')}</div>`).join('');
 }
 
@@ -221,6 +237,7 @@ function fixRounds(d) {
 let undoDel = null;
 
 function delSolve(i) {
+  if (view) return;
   const d = D(), s = d.solves[i];
   if (!s) return;
   d.solves.splice(i, 1);
@@ -297,6 +314,7 @@ function tick() {
 }
 
 function down() {
+  if (view) return;
   if (mode === 'run') {
     const t = performance.now() - t0;
     mode = 'idle';
@@ -350,7 +368,7 @@ document.addEventListener('keydown', e => {
     focusUI();
     return;
   }
-  if (mode === 'idle' && D().solves.length && !e.ctrlKey && !e.metaKey) {
+  if (mode === 'idle' && !view && D().solves.length && !e.ctrlKey && !e.metaKey) {
     const L = D().solves, s = L[L.length - 1];
     let h = 1;
     if (e.key === 'Backspace' || e.key === 'Delete') L.pop();
@@ -448,9 +466,11 @@ dl.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
+  if (view && ['p2', 'dnf', 'del', 'yes'].includes(a)) return;
   if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
+  else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); }
   else if (a === 'cube') { S.cur = b.dataset.i; save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close(); }
   else if (a === 'addcube') {
     const n = $('#cn').value.trim();
@@ -492,6 +512,7 @@ document.addEventListener('click', e => {
   b.blur();
   if (a === 'cubes' && mode === 'idle') cubePicker();
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
+  else if (a === 'today') { view = null; newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); }
   else if (a === 'rules') {
     open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
   } else if (a === 'set') settings();
@@ -499,12 +520,12 @@ document.addEventListener('click', e => {
   else if (a === 'solve') {
     sel = +b.dataset.i;
     const s = D().solves[sel];
-    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small><div class="row" style="margin-top:10px"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`);
+    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${view ? '' : `<div class="row" style="margin-top:10px"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`}`);
   } else if (a === 'x' && mode === 'idle') {
     delSolve(+b.dataset.i);
   } else if (a === 'undo') {
     undoSolve();
-  } else if (a === 'delall') {
+  } else if (a === 'delall' && !view) {
     open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
   }
 });

@@ -498,3 +498,81 @@ dialog input, dialog textarea {
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
+
+/* viewing a past day (read-only) */
+#vb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border: 1px solid var(--ac);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ac) 14%, var(--bg));
+}
+
+#vb[hidden] {
+  display: none;
+}
+
+body.view #tm {
+  color: var(--mut);
+}
+
+body.view .foot {
+  display: none;
+}
+
+/* calendar day summary */
+.dayhead {
+  margin: 12px 0 4px;
+  flex-wrap: wrap;
+}
+
+.dcard {
+  background: color-mix(in srgb, var(--fg) 5%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg));
+  border-radius: 12px;
+  padding: 4px 12px 12px;
+  margin: 10px 0;
+}
+
+.dtiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.dtiles div {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.dtiles small {
+  display: block;
+  color: var(--mut);
+}
+
+.dtiles b {
+  font-variant-numeric: tabular-nums;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chips span {
+  background: var(--card);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips small {
+  color: var(--mut);
+}
