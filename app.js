@@ -53,7 +53,8 @@ const $ = s => document.querySelector(s),
       tm = $('#tm'),
       dl = $('#dl');
 
-const EV = [['2', '2x2'], ['3', '3x3'], ['4', '4x4'], ['5', '5x5'], ['oh', '3x3 OH']];
+const allCubes = () => [...CUBES, ...(S.custom || [])],
+      curCube = () => allCubes().find(c => c.id === S.cur) || CUBES[1];
 const PRE = { dark: { bg: '#14161a', fg: '#eef0f3', ac: '#5b9dff' }, light: { bg: '#f6f7f9', fg: '#15181d', ac: '#2563eb' } };
 const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 
@@ -87,7 +88,7 @@ const save = () => {
 };
 
 const D = () => S.data[S.cur] || (S.data[S.cur] = { solves: [], rounds: [], round: 1 }),
-      name = () => EV.find(e => e[0] === S.cur)[1];
+      name = () => curCube().n;
 
 const val = s => s.p === 'D' ? Infinity : s.t + (s.p === 2 ? 2000 : 0);
 const fx = x => Number.isNaN(x) ? '–' : F(x, S.set.dec),
@@ -106,8 +107,8 @@ function applyTheme() {
 let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0, pen = 0, b8 = 0, b12 = 0;
 
 const newScr = () => {
-  scr = scramble(S.cur);
-  $('#scr').textContent = scr;
+  scr = genScr(curCube());
+  $('#scr').textContent = scr || '(this cube has no scramble)';
 };
 
 function beep(f) {
@@ -138,18 +139,17 @@ function rstrip(d) {
   $('#rs').innerHTML = ORD.map((o, i) => {
     const s = L[i], t = s ? fmtS(s) : '–';
     const w = L.length === 5 ? '(' + t + ')' : t;
-    return `<div><small>${o} solve</small><b${i === lo ? ' class="g"' : i === hi ? ' class="r"' : ''}>${i === lo ? '+' + w : i === hi ? '-' + w : t}</b>${s ? `<button class="xb" data-a="x" data-i="${I[i]}" title="Delete this time" aria-label="Delete ${o} solve">&times;</button>` : ''}</div>`;
+    return `<div${s ? ` data-a="solve" data-i="${I[i]}" class="pick"` : ''}><small>${o} solve</small><b${i === lo ? ' class="g"' : i === hi ? ' class="r"' : ''}>${i === lo ? '+' + w : i === hi ? '-' + w : t}</b></div>`;
   }).join('');
 }
 
 function render() {
-  $('#ev').innerHTML = EV.map(e => `<button data-a="ev" data-i="${e[0]}" class="${e[0] === S.cur ? 'on' : ''}">${e[1]}</button>`).join('');
+  $('#ev').textContent = name();
   const d = D(), [best, mean, cur, bao] = stats(arr(d.solves.map(val))),
         bx = (l, x) => `<div><small>${l}</small><b>${fx(x)}</b></div>`;
   rstrip(d);
   $('#st').innerHTML = bx('Best', best) + bx('Mean', mean) + bx('Current ao5', cur) + bx('Best ao5', bao) + `<div><small>Round</small><b>${S.set.auto ? d.round + ' · ' + d.solves.filter(x => x.r === d.round).length + '/5' : 'off'}</b></div>`;
   $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves';
-  $('#tl').innerHTML = d.solves.map((s, i) => `<button data-a="solve" data-i="${i}"><small>${i + 1}</small> ${fmtS(s)}</button>`).reverse().join('') || '<small>No solves yet.</small>';
   $('#rd').innerHTML = [...d.rounds].reverse().map(r => `<div><b>Round ${r.n}: ${fx(r.res)}</b> (ao5) · ${r.v.join(', ')}</div>`).join('');
 }
 
@@ -326,13 +326,13 @@ document.addEventListener('keyup', e => {
 document.addEventListener('pointerdown', e => {
   if (dl.open) return;
   if (mode === 'run') { down(); return; }
-  if (e.target.closest('#tz')) down();
+  if (e.target.closest('#tz') && !e.target.closest('button')) down();
 });
 
 ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (!dl.open) up(); }));
 
 const open = h => {
-  dl.innerHTML = h + '<div class="row" style="margin-top:12px"><span class="sp"></span><button data-a="close">Close</button></div>';
+  dl.innerHTML = '<div class="dc"><button data-a="close" class="x" aria-label="Close" title="Close">&times;</button>' + h + '</div>';
   if (!dl.open) dl.showModal();
 };
 
@@ -347,6 +347,11 @@ const RULES = [
   ['h', 'Scrambles are random-move, not the official random-state scrambler.']
 ];
 
+function cubePicker() {
+  const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${c.n}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`;
+  open(`<h3>Choose a cube</h3><div class="cubes">${allCubes().map(one).join('')}</div><h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube">Add</button></div><p class="lead">Scramble style decides which scrambles it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
+}
+
 function settings() {
   const s = S.set,
         c = (k, l) => `<label class="set">${l}<input type="checkbox" data-k="${k}" ${s[k] ? 'checked' : ''}></label>`,
@@ -356,6 +361,7 @@ function settings() {
 }
 
 dl.addEventListener('input', e => {
+  if (e.target.id === 'nt') { curCube().notes = e.target.value; save(); return; }
   const k = e.target.dataset.k;
   if (!k) return;
   const s = S.set;
@@ -381,10 +387,27 @@ dl.addEventListener('input', e => {
 let sel = -1;
 
 dl.addEventListener('click', e => {
+  if (e.target === dl) { dl.close(); return; } // click outside the window (on the dark backdrop)
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
   if (a === 'close') dl.close();
+  else if (a === 'cube') { S.cur = b.dataset.i; save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close(); }
+  else if (a === 'addcube') {
+    const n = $('#cn').value.trim();
+    if (!n) { $('#cn').focus(); return; }
+    (S.custom = S.custom || []).push({ id: 'c' + Date.now(), n, t: $('#ct').value, meth: null });
+    S.cur = S.custom[S.custom.length - 1].id;
+    save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close();
+  } else if (a === 'rmcube') {
+    const c = allCubes().find(x => x.id === b.dataset.i);
+    if (c && confirm('Remove ' + c.n + ' and all its solves?')) {
+      S.custom = S.custom.filter(x => x.id !== c.id);
+      delete S.data[c.id];
+      if (S.cur === c.id) S.cur = '3';
+      save(); newScr(); tm.textContent = '0.00'; render(); cubePicker();
+    }
+  }
   else if (a === 'mt') methods(b.dataset.m, b.dataset.t);
   else if (a === 'exp') {
     const l = document.createElement('a');
@@ -404,18 +427,12 @@ dl.addEventListener('click', e => {
 });
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button');
+  const b = e.target.closest('button, [data-a]');
   if (!b || dl.contains(b)) return;
   const a = b.dataset.a;
   b.blur();
-  if (a === 'ev' && mode === 'idle') {
-    S.cur = b.dataset.i;
-    save();
-    newScr();
-    tm.textContent = '0.00';
-    $('#msg').textContent = '';
-    render();
-  } else if (a === 'rules') {
+  if (a === 'cubes' && mode === 'idle') cubePicker();
+  else if (a === 'rules') {
     open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
   } else if (a === 'set') settings();
   else if (a === 'meth') methods();
@@ -451,18 +468,24 @@ render();
 })();
 
 function methods(m, t) {
-  const st = S.view;
+  const c = curCube();
+  if (!c.meth) {
+    open(`<h3>${c.n} notes</h3><p class="lead">Your own cube. Write your method, algs or tips here. They are saved.</p><textarea id="nt" class="notes" placeholder="Method, algs, tips...">${(c.notes || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</textarea>`);
+    return;
+  }
+  const MS = Object.fromEntries(c.meth.map(k => [k, M[k]])), st = S.view;
+  if (!MS[st.m]) { st.m = c.meth[0]; st.t = Object.keys(MS[st.m].sub)[0]; }
   if (m) {
-    if (m !== st.m || t) st.t = t || Object.keys(M[m].sub)[0];
+    if (m !== st.m || t) st.t = t || Object.keys(MS[m].sub)[0];
     st.m = m;
   }
-  const me = M[st.m], ks = Object.keys(me.sub);
+  const me = MS[st.m], ks = Object.keys(me.sub);
   if (!me.sub[st.t]) st.t = ks[0];
   const d = me.sub[st.t];
   save();
   const A = d.algs.filter(a => a[0] !== '#' && a[0] !== 't'),
         kn = A.filter(a => S.known[a[1]]).length;
-  open(`<h3>Methods <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(M).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${M[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:2px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}><b>${a[0]}</b><code>${a[1]}</code></label>`).join('')}`);
+  open(`<h3>Methods · ${c.n} <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(MS).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${MS[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:2px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}><b>${a[0]}</b><code>${a[1]}</code></label>`).join('')}`);
   dl.scrollTop = 0;
 }
 
