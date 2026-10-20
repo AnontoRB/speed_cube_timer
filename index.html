@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,3 +46,50 @@
   <script src="app.js" defer></script>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CubeTimer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <button id="logo" data-a="cubes" title="Choose a cube"><b>CubeTimer</b><span id="ev"></span> &#9662;</button>
+    <span class="sp"></span>
+    <div class="menu">
+      <button id="dt" data-a="cal" title="Calendar"></button>
+      <button data-a="meth">Methods</button>
+      <button data-a="rec">Records</button>
+      <button data-a="rules">Rules</button>
+      <button data-a="set">Settings</button>
+    </div>
+  </header>
+  <div id="wrap">
+<div id="mn">
+  <div id="vb" hidden></div>
+  <div id="scr"></div>
+  <main id="tz">
+    <div id="tm">0.00</div>
+    <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
+  </main>
+  <section id="rs"></section>
+  <section id="st"></section>
+</div>
+<aside id="side">
+  <div class="row">
+    <b id="cnt"></b>
+  </div>
+  <div id="goal"></div>
+  <div id="rd"></div>
+</aside>
+</div>
+  <dialog id="dl"></dialog>
+  <script src="algs.js" defer></script>
+  <script src="cubes.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
+>>>>>>> Stashed changes
