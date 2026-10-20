@@ -13,7 +13,7 @@ const CUBES = [
 ];
 
 // Scramble types a custom cube can use.
-const CTYPES = [['3', '3x3 style'], ['2', '2x2 style'], ['4', '4x4 style'], ['5', '5x5 style'], ['6', '6x6 style'], ['7', '7x7 style'], ['pyra', 'Pyraminx style'], ['skewb', 'Skewb style'], ['mega', 'Megaminx style'], ['none', 'No scramble']];
+const CTYPES = [['3', '3x3 scramble'], ['2', '2x2 scramble'], ['4', '4x4 scramble'], ['5', '5x5 scramble'], ['6', '6x6 scramble'], ['7', '7x7 scramble'], ['pyra', 'Pyraminx scramble'], ['skewb', 'Skewb scramble'], ['mega', 'Megaminx scramble'], ['none', 'No scramble']];
 
 const RN = n => Math.floor(Math.random() * n), PK = a => a[RN(a.length)];
 

@@ -576,3 +576,98 @@ body.view .foot {
 .chips small {
   color: var(--mut);
 }
+
+/* settings-driven customization */
+#tm {
+  font-family: var(--tf, inherit);
+  font-weight: var(--tw, 600);
+}
+
+#tm.hold {
+  color: var(--hd, #e74c3c);
+}
+
+#scr {
+  font-family: var(--sf, ui-monospace, Menlo, Consolas, monospace);
+}
+
+#tz {
+  min-height: var(--th, 42vh);
+  border-radius: calc(var(--rad, 8px) * 2);
+}
+
+button, select {
+  border-radius: var(--rad, 8px);
+}
+
+#st div, #rs div {
+  border-radius: calc(var(--rad, 8px) * 1.25);
+}
+
+dialog {
+  border-radius: calc(var(--rad, 8px) * 1.75);
+  max-width: min(560px, calc(94vw / (var(--z, 1) * var(--ui, 1))));
+  max-height: calc(88vh / (var(--z, 1) * var(--ui, 1)));
+}
+
+body {
+  zoom: calc(var(--z, 1) * var(--ui, 1));
+}
+
+body.no-rs #rs, body.no-st #st, body.no-side #side {
+  display: none;
+}
+
+dialog h4:first-of-type {
+  margin-top: 6px;
+}
+
+/* reactions */
+#msg .pb { color: #f1c40f; font-weight: 700; font-size: 1.15em; }
+#msg .good { color: var(--rd); }
+#msg .bad, #msg .vbad { color: #e8a33d; }
+#msg .dnf { color: #e74c3c; }
+#msg .goal, #msg .milestone { color: var(--ac); font-weight: 600; }
+
+@keyframes pbpop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+#tm.pbflash {
+  color: #f1c40f;
+  animation: pbpop .9s ease;
+}
+
+#goal {
+  margin: 12px 0;
+}
+
+#goal:empty {
+  display: none;
+}
+
+.gbar {
+  height: 8px;
+  background: var(--card);
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.gbar i {
+  display: block;
+  height: 100%;
+  background: var(--rd);
+  border-radius: 99px;
+}
+
+#goal small {
+  color: var(--mut);
+}
+
+.sk {
+  margin-top: 8px;
+  font-weight: 600;
+}
