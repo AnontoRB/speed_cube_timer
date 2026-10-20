@@ -124,8 +124,10 @@ function beep(f) {
 const ORD = ['1st', '2nd', '3rd', '4th', '5th'];
 
 function rstrip(d) {
-  let L = S.set.auto ? d.solves.filter(x => x.r === d.round) : d.solves.slice(-5);
-  if (S.set.auto && !L.length && d.round > 1) L = d.solves.filter(x => x.r === d.round - 1);
+  const ix = d.solves.map((_, i) => i);
+  let I = S.set.auto ? ix.filter(i => d.solves[i].r === d.round) : ix.slice(-5);
+  if (S.set.auto && !I.length && d.round > 1) I = ix.filter(i => d.solves[i].r === d.round - 1);
+  const L = I.map(i => d.solves[i]);
   let lo = -1, hi = -1;
   if (L.length > 1) {
     const v = L.map(val);
@@ -136,7 +138,7 @@ function rstrip(d) {
   $('#rs').innerHTML = ORD.map((o, i) => {
     const s = L[i], t = s ? fmtS(s) : '–';
     const w = L.length === 5 ? '(' + t + ')' : t;
-    return `<div><small>${o} solve</small><b${i === lo ? ' class="g"' : i === hi ? ' class="r"' : ''}>${i === lo ? '+' + w : i === hi ? '-' + w : t}</b></div>`;
+    return `<div><small>${o} solve</small><b${i === lo ? ' class="g"' : i === hi ? ' class="r"' : ''}>${i === lo ? '+' + w : i === hi ? '-' + w : t}</b>${s ? `<button class="xb" data-a="x" data-i="${I[i]}" title="Delete this time" aria-label="Delete ${o} solve">&times;</button>` : ''}</div>`;
   }).join('');
 }
 
@@ -151,9 +153,48 @@ function render() {
   $('#rd').innerHTML = [...d.rounds].reverse().map(r => `<div><b>Round ${r.n}: ${fx(r.res)}</b> (ao5) · ${r.v.join(', ')}</div>`).join('');
 }
 
+// Rebuild finished-round records from the solves, so deleting/restoring a time keeps them correct.
+function fixRounds(d) {
+  d.rounds = [];
+  for (let n = 1; n < d.round; n++) {
+    const rs = d.solves.filter(x => x.r === n);
+    if (rs.length === 5) d.rounds.push({ n, res: ao5(arr(rs.map(val))), v: rs.map(fmtS) });
+  }
+}
+
+let undoDel = null;
+
+function delSolve(i) {
+  const d = D(), s = d.solves[i];
+  if (!s) return;
+  d.solves.splice(i, 1);
+  fixRounds(d);
+  undoDel = { ev: S.cur, i, s };
+  save();
+  render();
+  const l = d.solves[d.solves.length - 1];
+  tm.textContent = l ? fmtS(l) : '0.00';
+  $('#msg').innerHTML = `Deleted ${fmtS(s)} · <button data-a="undo">Undo</button>`;
+}
+
+function undoSolve() {
+  if (!undoDel) return;
+  const u = undoDel;
+  undoDel = null;
+  S.cur = u.ev;
+  const d = D();
+  d.solves.splice(Math.min(u.i, d.solves.length), 0, u.s);
+  fixRounds(d);
+  save();
+  render();
+  tm.textContent = fmtS(u.s);
+  $('#msg').textContent = 'Time restored';
+}
+
 const focusUI = () => document.body.classList.toggle('run', S.set.focus && mode !== 'idle');
 
 function add(t, p) {
+  undoDel = null;
   const e = D(), pb = Math.min(Infinity, ...e.solves.map(val)),
         s = { t, p, s: scr, d: Date.now(), r: S.set.auto ? e.round : 0 };
   e.solves.push(s);
@@ -358,7 +399,7 @@ dl.addEventListener('click', e => {
     i.click();
   } else if (a === 'p2') { s.p = s.p === 2 ? 0 : 2; save(); render(); dl.close(); }
   else if (a === 'dnf') { s.p = s.p === 'D' ? 0 : 'D'; save(); render(); dl.close(); }
-  else if (a === 'del') { d.solves.splice(sel, 1); save(); render(); dl.close(); }
+  else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes') { S.data[S.cur] = { solves: [], rounds: [], round: 1 }; save(); tm.textContent = '0.00'; render(); dl.close(); }
 });
 
@@ -382,6 +423,10 @@ document.addEventListener('click', e => {
     sel = +b.dataset.i;
     const s = D().solves[sel];
     open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small><div class="row" style="margin-top:10px"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`);
+  } else if (a === 'x' && mode === 'idle') {
+    delSolve(+b.dataset.i);
+  } else if (a === 'undo') {
+    undoSolve();
   } else if (a === 'delall') {
     open(`<h3>Delete all ${name()} times?</h3><p>This removes every solve and round for this event. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
   }

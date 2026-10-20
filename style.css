@@ -300,3 +300,26 @@ dialog h4 {
 #rs .r {
   color: #e74c3c;
 }
+#rs div {
+  position: relative;
+}
+
+#rs .xb {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 0 6px;
+  line-height: 1.3;
+  border: 0;
+  background: transparent;
+  color: var(--mut);
+}
+
+#rs .xb:hover {
+  color: #e74c3c;
+}
+
+#msg button {
+  padding: 2px 8px;
+  margin-left: 4px;
+}
