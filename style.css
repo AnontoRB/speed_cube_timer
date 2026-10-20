@@ -622,6 +622,58 @@ dialog h4:first-of-type {
   margin-top: 6px;
 }
 
+/* detailed reactions: opening line, headline, number chips, events, tip */
+#msg {
+  min-height: 7.5em;
+  max-width: 46em;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.rx {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.rx-g {
+  color: var(--mut);
+  font-size: .9em;
+}
+
+.rx-h {
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.rx-c {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+
+.rx-c span {
+  background: color-mix(in srgb, var(--fg) 14%, var(--bg));
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: .85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rx-e {
+  line-height: 1.4;
+  font-size: .95em;
+}
+
+.rx-t {
+  color: var(--mut);
+  font-size: .9em;
+  line-height: 1.4;
+}
+
 /* reactions */
 #msg .pb { color: #f1c40f; font-weight: 700; font-size: 1.15em; }
 #msg .good { color: var(--rd); }
@@ -671,3 +723,95 @@ dialog h4:first-of-type {
   margin-top: 8px;
   font-weight: 600;
 }
+
+/* event colors inside the message */
+#msg .streak { color: var(--rd); font-weight: 600; }
+#msg .goalp { color: var(--ac); }
+#msg .round { color: var(--fg); }
+#msg .tip { color: var(--mut); }
+
+/* glow when something big happens */
+@keyframes pbglow {
+  0% { box-shadow: 0 0 0 0 #f1c40f00; }
+  25% { box-shadow: 0 0 60px 8px #f1c40f88; }
+  100% { box-shadow: 0 0 0 0 #f1c40f00; }
+}
+
+@keyframes cheerglow {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  25% { box-shadow: 0 0 50px 4px color-mix(in srgb, var(--ac) 55%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes goalflash {
+  0%, 100% { transform: scaleY(1); }
+  30% { transform: scaleY(1.9); }
+}
+
+#tz.pbglow { animation: pbglow 1.8s ease-out; }
+#tz.cheer { animation: cheerglow 1.4s ease-out; }
+#goal.flash .gbar { animation: goalflash 1s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  #tm.pbflash, #tz.pbglow, #tz.cheer, #goal.flash .gbar { animation: none; }
+}
+
+/* right column: goal, last 7 days, today's numbers */
+.sk small { font-weight: 400; }
+
+.wk {
+  display: flex;
+  gap: 5px;
+  margin: 10px 0 2px;
+}
+
+.wk > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.wk .bar {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 38px;
+}
+
+.wk i {
+  display: block;
+  width: 100%;
+  min-height: 3px;
+  background: color-mix(in srgb, var(--fg) 30%, var(--bg));
+  border-radius: 3px;
+}
+
+.wk .ok i { background: var(--rd); }
+.wk small { font-size: .7em; }
+.wk .td small { color: var(--ac); font-weight: 700; }
+
+.tsum {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tsum div {
+  background: var(--card);
+  border-radius: var(--rad, 8px);
+  padding: 5px 8px;
+}
+
+.tsum small { display: block; }
+.tsum b { font-variant-numeric: tabular-nums; }
+
+#rd .g { color: var(--rd); }
+#rd .r { color: #e74c3c; }
+
+/* sub-X badges in the Records window */
+.chips span.ok { outline: 1px solid var(--rd); }
+.chips span.nx { outline: 1px solid var(--ac); }
+.chips span.lk { opacity: .5; }
