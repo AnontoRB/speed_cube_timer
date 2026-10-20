@@ -443,3 +443,58 @@ dialog input, dialog textarea {
   min-height: 240px;
   resize: vertical;
 }
+
+/* date button, calendar, bottom delete */
+#dt {
+  white-space: nowrap;
+}
+
+.foot {
+  margin-top: 16px;
+}
+
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.cal span {
+  text-align: center;
+  color: var(--mut);
+  font-size: .8em;
+}
+
+.cal button {
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+  min-height: 2.6em;
+}
+
+.cal button.has {
+  border-color: var(--rd);
+}
+
+.cal button.td {
+  box-shadow: inset 0 0 0 1px var(--ac);
+}
+
+.cal small {
+  font-size: .7em;
+  opacity: .8;
+}
+
+.dsum {
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg));
+}
+
+.dtl {
+  color: var(--mut);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}

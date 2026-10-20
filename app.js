@@ -71,6 +71,7 @@ try {
 
 S.known = S.known || {};
 S.view = S.view || { m: 'cfop', t: 'f2l' };
+S.hist = S.hist || {};
 
 try { navigator.storage.persist(); } catch (e) {}
 
@@ -95,6 +96,60 @@ const fx = x => Number.isNaN(x) ? '–' : F(x, S.set.dec),
       fmtS = s => s.p === 'D' ? 'DNF' : F(val(s), S.set.dec) + (s.p === 2 ? '+' : '');
 
 const arr = v => Float64Array.from(v);
+
+// ---- Days: each day starts a fresh session; older days are kept in S.hist (shown in the calendar) ----
+const dkey = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+function rollover() {
+  const today = dkey(Date.now());
+  if (S.day === today) return false;
+  S.hist = S.hist || {};
+  let last = 0;
+  for (const id in S.data) { const L = S.data[id].solves; if (L.length) last = Math.max(last, L[L.length - 1].d || 0); }
+  const key = S.day || (last ? dkey(last) : today);
+  let moved = false;
+  if (key !== today) {
+    for (const id in S.data) {
+      const e = S.data[id];
+      if (!e.solves.length) continue;
+      const h = (S.hist[key] = S.hist[key] || {}), o = h[id];
+      h[id] = o ? { solves: o.solves.concat(e.solves), rounds: o.rounds.concat(e.rounds) } : { solves: e.solves, rounds: e.rounds };
+      moved = true;
+    }
+    if (moved) S.data = {};
+  }
+  S.day = today;
+  if (moved) save();
+  return moved;
+}
+
+function dayData(key) {
+  const h = { ...(S.hist[key] || {}) };
+  if (key === S.day) for (const id in S.data) if (S.data[id].solves.length) h[id] = S.data[id];
+  return h;
+}
+
+const dur = ms => { const s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + 'h ' : '') + (h || m ? m + 'm ' : '') + s % 60 + 's'; };
+const cal = { y: 0, m: 0, sel: '' };
+
+function calendar(key) {
+  const now = new Date(), today = dkey(now);
+  if (key) cal.sel = key;
+  if (!cal.sel) { cal.sel = today; cal.y = now.getFullYear(); cal.m = now.getMonth(); }
+  const first = new Date(cal.y, cal.m, 1), n = new Date(cal.y, cal.m + 1, 0).getDate();
+  let cells = '<span></span>'.repeat(first.getDay());
+  for (let i = 1; i <= n; i++) {
+    const k = cal.y + '-' + String(cal.m + 1).padStart(2, '0') + '-' + String(i).padStart(2, '0');
+    const c = Object.values(dayData(k)).reduce((a, e) => a + e.solves.length, 0);
+    cells += `<button data-a="calday" data-k="${k}" class="${k === cal.sel ? 'on' : c ? 'has' : ''}${k === today ? ' td' : ''}">${i}${c ? `<small>${c}</small>` : ''}</button>`;
+  }
+  const day = dayData(cal.sel), ids = Object.keys(day),
+        det = ids.length ? ids.map(id => {
+          const e = day[id], v = e.solves.map(val), [b, m] = stats(arr(v)), tot = v.filter(isFinite).reduce((a, c) => a + c, 0), cn = allCubes().find(c => c.id === id);
+          return `<div class="dsum"><b>${cn ? cn.n : id}</b> · ${e.solves.length} solves · best ${fx(b)} · mean ${fx(m)} · total ${dur(tot)}<div class="dtl">${e.solves.map(fmtS).join(', ')}</div></div>`;
+        }).join('') : '<p class="lead">No solves this day.</p>';
+  open(`<h3>Calendar</h3><div class="row"><button data-a="calm" data-d="-1">&lsaquo;</button><b style="flex:1;text-align:center">${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button data-a="calm" data-d="1">&rsaquo;</button></div><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}${cells}</div><h4>${new Date(cal.sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>${det}`);
+}
 
 function applyTheme() {
   const r = document.documentElement.style, s = S.set;
@@ -149,7 +204,8 @@ function render() {
         bx = (l, x) => `<div><small>${l}</small><b>${fx(x)}</b></div>`;
   rstrip(d);
   $('#st').innerHTML = bx('Best', best) + bx('Mean', mean) + bx('Current ao5', cur) + bx('Best ao5', bao) + `<div><small>Round</small><b>${S.set.auto ? d.round + ' · ' + d.solves.filter(x => x.r === d.round).length + '/5' : 'off'}</b></div>`;
-  $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves';
+  $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves today';
+  $('#dt').textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   $('#rd').innerHTML = [...d.rounds].reverse().map(r => `<div><b>Round ${r.n}: ${fx(r.res)}</b> (ao5) · ${r.v.join(', ')}</div>`).join('');
 }
 
@@ -195,6 +251,7 @@ const focusUI = () => document.body.classList.toggle('run', S.set.focus && mode 
 
 function add(t, p) {
   undoDel = null;
+  rollover();
   const e = D(), pb = Math.min(Infinity, ...e.solves.map(val)),
         s = { t, p, s: scr, d: Date.now(), r: S.set.auto ? e.round : 0 };
   e.solves.push(s);
@@ -392,6 +449,8 @@ dl.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
   if (a === 'close') dl.close();
+  else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
+  else if (a === 'calday') calendar(b.dataset.k);
   else if (a === 'cube') { S.cur = b.dataset.i; save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close(); }
   else if (a === 'addcube') {
     const n = $('#cn').value.trim();
@@ -432,6 +491,7 @@ document.addEventListener('click', e => {
   const a = b.dataset.a;
   b.blur();
   if (a === 'cubes' && mode === 'idle') cubePicker();
+  else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
   else if (a === 'rules') {
     open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
   } else if (a === 'set') settings();
@@ -445,10 +505,11 @@ document.addEventListener('click', e => {
   } else if (a === 'undo') {
     undoSolve();
   } else if (a === 'delall') {
-    open(`<h3>Delete all ${name()} times?</h3><p>This removes every solve and round for this event. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
+    open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
   }
 });
 
+rollover();
 applyTheme();
 newScr();
 render();
@@ -510,6 +571,8 @@ async function pull() {
       S = { ...S, ...j, set: { ...S.set, ...j.set } };
       S.known = S.known || {};
       S.view = S.view || { m: 'cfop', t: 'f2l' };
+      S.hist = S.hist || {};
+      rollover();
       try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
       applyTheme();
       newScr();
@@ -521,4 +584,5 @@ async function pull() {
 }
 
 pull();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); } });
+setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);
