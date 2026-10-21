@@ -5,6 +5,7 @@
   --rd: #2ecc71;
   --fs: 96px;
   --ss: 18px;
+  --btn-gap: 10px; /* the space between neighbouring buttons, used everywhere */
   --mut: color-mix(in srgb, var(--fg) 55%, var(--bg));
   --card: color-mix(in srgb, var(--fg) 9%, var(--bg));
   box-sizing: border-box;
@@ -40,7 +41,7 @@ header {
 header, .row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--btn-gap);
 }
 
 .sp {
@@ -362,7 +363,7 @@ dialog .x {
 
 /* top bar: title, events and menu buttons in one row */
 header {
-  gap: 14px;
+  gap: var(--btn-gap);
 }
 
 header nav {
@@ -372,7 +373,8 @@ header nav {
 
 header .menu {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: var(--btn-gap);
 }
 
 /* cube picker (CubeTimer logo) */
@@ -401,7 +403,7 @@ header .menu {
 .cubes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
+  gap: var(--btn-gap);
   margin: 10px 0;
 }
 
@@ -421,7 +423,7 @@ header .menu {
 .add {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--btn-gap);
 }
 
 dialog input, dialog textarea {
@@ -449,14 +451,24 @@ dialog input, dialog textarea {
   white-space: nowrap;
 }
 
-.foot {
+/* a row of action buttons: same gap as everywhere, wraps on narrow screens, same space above */
+.btns {
+  flex-wrap: wrap;
+  justify-content: space-between;
   margin-top: 16px;
+}
+
+/* buttons that belong together stay side by side; the groups wrap as whole units */
+.bg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--btn-gap);
 }
 
 .cal {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: var(--btn-gap);
   margin: 8px 0;
 }
 
@@ -518,10 +530,6 @@ dialog input, dialog textarea {
 
 body.view #tm {
   color: var(--mut);
-}
-
-body.view .foot {
-  display: none;
 }
 
 /* calendar day summary */

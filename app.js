@@ -60,7 +60,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
-  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, rdy: true, vib: true, brk: true, goal: 20,
+  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20,
   tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true
 });
 
@@ -386,19 +386,19 @@ const MILES = [1, 10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500
 // ---- Message pools. {t} time, {cn} cube, {gap} seconds gained, {old} old record, {pct} percent, {dif} seconds off average, {avg} average, {off} seconds off PB, {best} PB ----
 const PBL = {
   std: [
-    `🎉 NEW PERSONAL BEST! {t} is {gap}s faster than your old record of {old}. Absolutely incredible!`,
-    `🏆 {t}, THAT'S A PB! {gap}s quicker than ever before ({pct}% faster). Be so proud!`,
-    `🔥 PERSONAL BEST!!! {t} on {cn}. All that practice just paid off, amazing!`,
-    `⚡ New record: {t}! You just knocked {gap}s off your best. You are on fire!`
+    `🎉 CONGRATULATIONS! NEW PERSONAL BEST! {t} is {gap}s faster than your old record of {old}. Absolutely incredible!`,
+    `🏆 Congratulations, {t} is a PB! {gap}s quicker than ever before ({pct}% faster). Be so proud!`,
+    `🔥 PERSONAL BEST!!! Congratulations on {t} on {cn}. All that practice just paid off, amazing!`,
+    `⚡ Congratulations, new record: {t}! You just knocked {gap}s off your best. You are on fire!`
   ],
   big: [
-    `🚀 HUGE PB! {t}! You smashed your old record of {old} by {gap}s ({pct}%). Unreal!`,
-    `🤯 {t}?! That is a MASSIVE {gap}s improvement on your record. Take a bow!`,
-    `💥 BOOM! {t}! Your old best of {old} just got crushed by {pct}%!`
+    `🚀 CONGRATULATIONS, HUGE PB! {t}! You smashed your old record of {old} by {gap}s ({pct}%). Unreal!`,
+    `🤯 {t}?! Congratulations, that is a MASSIVE {gap}s improvement on your record. Take a bow!`,
+    `💥 BOOM! {t}! Congratulations, your old best of {old} just got crushed by {pct}%!`
   ],
   tiny: [
-    `😮 NEW PB by just {gap}s: {t}! Every hundredth counts, and that one is yours!`,
-    `✨ A razor-thin PB: {t}, only {gap}s faster than before. A record is a record! 🏆`
+    `😮 Congratulations, NEW PB by just {gap}s: {t}! Every hundredth counts, and that one is yours!`,
+    `✨ Congratulations, a razor-thin PB: {t}, only {gap}s faster than before. A record is a record! 🏆`
   ]
 };
 
@@ -485,6 +485,122 @@ function jingle(notes, step = 0.11, len = 0.16) {
   } catch (e) {}
 }
 
+// ---- Joyful PB music: melody + chords + bass + drums, all synthesized (no audio files needed) ----
+const hz = m => 440 * 2 ** ((m - 69) / 12);
+// bpm, one chord root per bar (major chords; the last bar is a held finish), melody as [midi note, beats]
+const TUNES = [
+  { bpm: 172, ch: [48, 43, 41, 43, 48], mel: [
+    [67, .5], [72, .5], [76, .5], [79, .5], [84, 1], [79, 1],
+    [86, 1], [83, .5], [79, .5], [83, 1], [86, 1],
+    [81, .5], [84, .5], [89, 1], [88, .5], [86, .5], [84, 1],
+    [83, .5], [86, .5], [91, 1], [88, .5], [86, .5], [83, .5], [79, .5],
+    [84, 3]
+  ] },
+  { bpm: 164, ch: [43, 50, 48, 50, 43], mel: [
+    [74, .5], [79, .5], [83, .5], [86, .5], [91, 1], [86, 1],
+    [90, 1], [88, .5], [86, .5], [85, 1], [88, 1],
+    [88, .5], [86, .5], [84, 1], [79, .5], [84, .5], [88, 1],
+    [90, .5], [93, .5], [90, 1], [88, .5], [86, .5], [85, .5], [86, .5],
+    [91, 3]
+  ] }
+];
+
+// Plays a ~6 second happy tune. Returns false when music is off, so the caller can fall back to the short jingle.
+function pbMusic(big) {
+  const vol = (S.set.vol ?? 60) / 100 * 0.5;
+  if (!S.set.sfx || S.set.pbm === false || vol <= 0) return false;
+  try {
+    const T = pk(TUNES), c = new AudioContext(), b = 60 / T.bpm, t0 = c.currentTime + 0.05;
+    if (c.state === 'suspended') c.resume();
+    const out = c.createGain(), comp = c.createDynamicsCompressor(), dly = c.createDelay(), fb = c.createGain(), wet = c.createGain();
+    out.gain.value = vol;
+    dly.delayTime.value = b * 0.75;
+    fb.gain.value = 0.22;
+    wet.gain.value = 0.28;
+    out.connect(comp);
+    out.connect(dly);
+    dly.connect(fb);
+    fb.connect(dly);
+    dly.connect(wet);
+    wet.connect(comp);
+    comp.connect(c.destination);
+    const nb = c.createBuffer(1, Math.round(c.sampleRate * 0.3), c.sampleRate), nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+    // one pitched note; s = how much volume is kept halfway (low = plucky, high = sustained)
+    const note = (m, t, d, g, type = 'triangle', s = 0.3) => {
+      const o = c.createOscillator(), e = c.createGain();
+      o.type = type;
+      o.frequency.value = hz(m);
+      e.gain.setValueAtTime(0.0001, t);
+      e.gain.exponentialRampToValueAtTime(g, t + 0.015);
+      e.gain.exponentialRampToValueAtTime(g * s, t + d * 0.6);
+      e.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(e);
+      e.connect(out);
+      o.start(t);
+      o.stop(t + d + 0.03);
+    };
+    const noise = (t, d, f, type, g) => {
+      const s = c.createBufferSource(), fl = c.createBiquadFilter(), e = c.createGain();
+      s.buffer = nb;
+      s.loop = true;
+      fl.type = type;
+      fl.frequency.value = f;
+      e.gain.setValueAtTime(g, t);
+      e.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      s.connect(fl);
+      fl.connect(e);
+      e.connect(out);
+      s.start(t);
+      s.stop(t + d + 0.02);
+    };
+    const kick = t => {
+      const o = c.createOscillator(), e = c.createGain();
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      e.gain.setValueAtTime(0.7, t);
+      e.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(e);
+      e.connect(out);
+      o.start(t);
+      o.stop(t + 0.2);
+    };
+
+    // accompaniment: kick + bass on beats 1 and 3, chord stabs + clap on 2 and 4, hi-hats on every half beat
+    const last = T.ch.length - 1;
+    T.ch.forEach((r, i) => {
+      const tb = t0 + i * 4 * b, pad = [r + 12, r + 16, r + 19];
+      if (i === last) {
+        pad.forEach(m => note(m, tb, b * 3.2, 0.16, 'triangle', 0.8));
+        note(r, tb, b * 3.2, 0.32, 'triangle', 0.8);
+        kick(tb);
+        noise(tb, big ? 1.2 : 0.6, 5000, 'highpass', big ? 0.35 : 0.2);
+        return;
+      }
+      for (let j = 0; j < 4; j++) {
+        const t = tb + j * b;
+        if (j % 2 === 0) { kick(t); note(j ? r + 7 : r, t, b * 1.8, 0.34); }
+        else { pad.forEach(m => note(m, t, b * 0.8, 0.05, 'square')); noise(t, 0.1, 1800, 'bandpass', 0.35); }
+        noise(t, 0.035, 7000, 'highpass', 0.12);
+        noise(t + b / 2, 0.035, 7000, 'highpass', 0.18);
+      }
+    });
+
+    // melody (a sparkly octave on top; a big PB adds a brighter second octave layer)
+    let t = t0;
+    T.mel.forEach(([m, d], k) => {
+      const fin = k === T.mel.length - 1, len = d * b * (fin ? 1.1 : 1.05);
+      note(m, t, len, 0.3, 'triangle', fin ? 0.8 : 0.3);
+      note(m + 12, t, len, 0.08, 'sine', fin ? 0.8 : 0.3);
+      if (big) note(m + 12, t, len, 0.1, 'triangle', fin ? 0.8 : 0.3);
+      t += d * b;
+    });
+    setTimeout(() => c.close(), (19 * b + 2.5) * 1000);
+    return true;
+  } catch (e) { return false; }
+}
+
 // mode 'c' = burst from the middle, 'lr' = two cannons from the lower corners
 function confetti(n = 150, mode = 'c') {
   if (!S.set.fx || n <= 0 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -540,7 +656,7 @@ function celebrate(kind, x = {}) {
   if (kind === 'pb') {
     confetti(Math.round((big ? 220 : 130) * k), big ? 'lr' : 'c');
     if (big) setTimeout(() => confetti(Math.round(110 * k), 'c'), 650);
-    jingle(big ? [523, 659, 784, [1047, 523], 1319, [1568, 784, 392]] : [523, 659, 784, 1047, 1319], big ? 0.11 : 0.1, 0.24);
+    if (!pbMusic(big)) jingle(big ? [523, 659, 784, [1047, 523], 1319, [1568, 784, 392]] : [523, 659, 784, 1047, 1319], big ? 0.11 : 0.1, 0.24);
     buzz(big ? [60, 40, 60, 40, 60, 40, 220] : [60, 40, 60, 40, 140]);
     flash(tm, 'pbflash', 1600);
     flash(tz, 'pbglow', 1900);
@@ -603,7 +719,7 @@ function react(s, why) {
         tv = e.solves.map(val).filter(isFinite), dayFirst = todayCount() === 0,
         x = { head: '', hk: 'ok', kind: 'ok', chips: [], events: [], pre: [], tip: '', pb: isPB, big: false, fast: 0 };
   if (isPB) s.pb = 1;
-  if (tone === 'off') { x.head = isPB ? 'New personal best!' : 'Solve saved'; x.hk = x.kind = ''; return x; }
+  if (tone === 'off') { x.head = isPB ? `🏆 Congratulations! New personal best: ${t}!` : 'Solve saved'; x.hk = x.kind = isPB ? 'pb' : ''; return x; }
 
   if (isPB) {
     // ---- a new personal best ----
@@ -1016,8 +1132,8 @@ function settings() {
 <h4>Text</h4>${sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']])}${r('tw', 'Timer weight', 300, 800, 100)}${r('fs', 'Timer size', 40, 200, 2)}${r('ss', 'Scramble size', 12, 36, 1)}${c('sfm', 'Monospace scramble')}${sl('dec', 'Decimals', [[2, '2'], [3, '3']])}
 <h4>Timing and sound</h4>${r('hold', 'Hold time (ms)', 0, 1000, 50)}${c('insp', '15 s inspection')}${c('snd', 'Inspection beeps')}${r('vol', 'Beep volume (%)', 0, 100, 5)}${c('auto', 'Auto rounds (new round after each ao5)')}${c('focus', 'Focus mode (hide everything while solving)')}${c('hide', 'Hide time while solving')}${c('secs', 'Show whole seconds only while solving')}
 <h4>Reactions and fun</h4>${sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']])}${sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']])}${c('brk', 'Suggest a break after several slow solves')}${r('goal', 'Daily solve goal (0 = off)', 0, 200, 5)}
-<h4>Effects</h4>${c('fx', 'Confetti and glow')}${r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1)}${c('sfx', 'Sound effects')}${c('rdy', 'Blip when the timer turns green')}${c('vib', 'Vibration (phones)')}<div class="row" style="margin-top:6px"><button data-a="fxtest">Preview effects (closes this window)</button></div>
-<div class="row" style="margin-top:10px;flex-wrap:wrap"><button data-a="exp">Export data</button><button data-a="imp">Import data</button><span class="sp"></span><button data-a="rst">Reset settings</button></div>`);
+<h4>Effects</h4>${c('fx', 'Confetti and glow')}${r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1)}${c('sfx', 'Sound effects')}${c('pbm', 'Joyful music on a new PB')}${c('rdy', 'Blip when the timer turns green')}${c('vib', 'Vibration (phones)')}<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>
+<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">${view ? '' : '<button data-a="delall">Delete everything</button>'}<button data-a="rst">Reset settings</button></span></div>`);
 }
 
 dl.addEventListener('input', e => {
@@ -1051,7 +1167,7 @@ dl.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
-  if (view && ['p2', 'dnf', 'del', 'yes'].includes(a)) return;
+  if (view && ['p2', 'dnf', 'del', 'yes', 'delall'].includes(a)) return;
   if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
@@ -1090,6 +1206,7 @@ dl.addEventListener('click', e => {
   else if (a === 'dnf') { s.p = s.p === 'D' ? 0 : 'D'; repb(S.cur); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes') { S.data[S.cur] = { solves: [], rounds: [], round: 1 }; repb(S.cur); save(); tm.textContent = '0.00'; render(); dl.close(); }
+  else if (a === 'delall') open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
 });
 
 document.addEventListener('click', e => {
@@ -1108,13 +1225,11 @@ document.addEventListener('click', e => {
   else if (a === 'solve') {
     sel = +b.dataset.i;
     const s = D().solves[sel];
-    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row" style="margin-top:10px"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`}`);
+    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`}`);
   } else if (a === 'x' && mode === 'idle') {
     delSolve(+b.dataset.i);
   } else if (a === 'undo') {
     undoSolve();
-  } else if (a === 'delall' && !view) {
-    open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
   }
 });
 
