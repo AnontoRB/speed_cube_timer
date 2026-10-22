@@ -1,19 +1,22 @@
 # CubeTimer
 
-Minimal speedcubing timer: 2x2, 3x3, 4x4, 5x5 and 3x3 OH. HTML + CSS + JavaScript, with a Rust core (WebAssembly) and a Rust server.
+A minimal and feature-rich speedcubing timer supporting multiple events: 2x2, 3x3, 4x4, 5x5, 3x3 OH, Pyraminx, Skewb, and Megaminx[cite: 7, 8]. Built entirely with HTML, CSS, and vanilla JavaScript[cite: 6, 8].
 
-## 1. Just use it (saved in your own browser)
-Double-click `index.html`. Solves, settings and ticked algs are saved in this browser.
+👉 **Live Demo:** [https://anontorb.github.io/speed_cube_timer/]
 
-## 2. Save for everyone who visits (server)
-    rustc -O server.rs -o server
-    ./server                 # open http://localhost:8000   (PORT=3000 ./server to change port)
+---
 
-Everything is saved in `data.json` next to the server. Anyone who opens the site finds the same solves, settings and ticked algs. Deploy the folder + the `server` program on any host that runs programs (a VPS, Render, Fly.io, etc.). GitHub Pages cannot run it, so there it falls back to per-browser saving.
+## Usage
 
-## 3. Optional: Rust/WebAssembly core
-    cargo install wasm-pack
-    wasm-pack build --target web --release
+1. Open the live link or host `index.html` locally in any modern browser[cite: 4, 8].
+2. All your solves, custom cubes, algorithm checklists, and settings are automatically saved in your browser's `localStorage`[cite: 4, 6].
 
-## Keys
-Space (hold, release) start/stop · Esc cancel inspection · Backspace delete last · 2 toggle +2 · D toggle DNF
+---
+
+## Features & Controls
+
+* **Events & Scrambles:** Supports WCA puzzle categories with built-in scramble generators[cite: 7, 8].
+* **Inspection & Timing:** 15-second inspection timer with audio beeps, automatic +2 penalties, and DNF management[cite: 8]. 
+* **Controls:** Hold the spacebar (or touch the screen), wait for the green signal, and release to start/stop. Use `Backspace` to delete the last solve, `2` to toggle +2, and `D` for DNF[cite: 4, 8].
+* **Analytics & Records:** View rolling averages (ao5, ao12, ao100), daily goals, streak tracking, session history calendars, and personal best highlights[cite: 6].
+* **Methods & Algs:** Integrated guides and checklists for CFOP, Roux, ZZ, Petrus, and beginner methods[cite: 5, 7].
