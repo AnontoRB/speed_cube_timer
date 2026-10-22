@@ -15,17 +15,15 @@ const CUBES = [
 // Scramble types a custom cube can use.
 const CTYPES = [['3', '3x3 scramble'], ['2', '2x2 scramble'], ['4', '4x4 scramble'], ['5', '5x5 scramble'], ['6', '6x6 scramble'], ['7', '7x7 scramble'], ['pyra', 'Pyraminx scramble'], ['skewb', 'Skewb scramble'], ['mega', 'Megaminx scramble'], ['none', 'No scramble']];
 
-const RN = n => Math.floor(Math.random() * n), PK = a => a[RN(a.length)];
-
 function nxn(n, len) {
   const fs = 'URFDLB', mx = Math.floor(n / 2), o = [];
   let la = -1;
   while (o.length < len) {
-    const f = RN(6), a = f % 3;
+    const f = R(6), a = f % 3;
     if (a === la) continue;
     la = a;
-    const k = 1 + RN(mx);
-    o.push((k > 2 ? k : '') + fs[f] + (k > 1 ? 'w' : '') + PK(['', "'", '2']));
+    const k = 1 + R(mx);
+    o.push((k > 2 ? k : '') + fs[f] + (k > 1 ? 'w' : '') + pk(['', "'", '2']));
   }
   return o.join(' ');
 }
@@ -34,19 +32,19 @@ function turns(faces, len, dbl) {
   const o = [];
   let l = -1;
   while (o.length < len) {
-    const i = RN(faces.length);
+    const i = R(faces.length);
     if (i === l) continue;
     l = i;
-    o.push(faces[i] + PK(dbl ? ['', "'", '2'] : ['', "'"]));
+    o.push(faces[i] + pk(dbl ? ['', "'", '2'] : ['', "'"]));
   }
   return o;
 }
 
-const pyra = () => turns('ULRB', 11).concat([...'ulrb'].map(c => { const r = RN(3); return r ? c + (r == 2 ? "'" : '') : ''; }).filter(Boolean)).join(' ');
+const pyra = () => turns('ULRB', 11).concat([...'ulrb'].map(c => { const r = R(3); return r ? c + (r == 2 ? "'" : '') : ''; }).filter(Boolean)).join(' ');
 const skewb = () => turns('RLUB', 11).join(' ');
-const mega = () => Array.from({ length: 7 }, () => Array.from({ length: 10 }, (_, i) => (i % 2 ? 'D' : 'R') + PK(['++', '--'])).concat(RN(2) ? 'U' : "U'").join(' ')).join('\n');
+const mega = () => Array.from({ length: 7 }, () => Array.from({ length: 10 }, (_, i) => (i % 2 ? 'D' : 'R') + pk(['++', '--'])).concat(R(2) ? 'U' : "U'").join(' ')).join('\n');
 
-// t = scramble type. Uses the (Rust or JS) scramble() for 2x2-5x5.
+// t = scramble type. R and pk (random helpers) come from app.js. Uses the (Rust or JS) scramble() for 2x2-5x5.
 function genScr(c) {
   const t = c.t;
   if (['2', '3', '4', '5'].includes(t)) return scramble(t);

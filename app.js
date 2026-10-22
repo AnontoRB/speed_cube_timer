@@ -145,6 +145,7 @@ function dayData(key) {
   return h;
 }
 
+const longDay = k => new Date(k + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 const dur = ms => { const s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + 'h ' : '') + (h || m ? m + 'm ' : '') + s % 60 + 's'; };
 const cal = { y: 0, m: 0, sel: '' };
 
@@ -164,7 +165,7 @@ function calendar(key) {
           const e = day[id], v = e.solves.map(val), [b, m, , ba] = stats(arr(v)), tot = v.filter(isFinite).reduce((a, c) => a + c, 0), cn = allCubes().find(c => c.id === id), pbn = e.solves.filter(x => x.pb).length, dnn = e.solves.filter(x => x.p === 'D').length;
           return `<div class="dcard"><h4>${cn ? cn.n : id}</h4><div class="dtiles">${tile('Solves', e.solves.length)}${tile('Best', fx(b))}${tile('Mean', fx(m))}${tile('Best ao5', fx(ba))}${tile('Time spent', dur(tot))}${pbn ? tile('PBs ★', pbn) : ''}${dnn ? tile('DNFs', dnn) : ''}</div><div class="chips">${e.solves.map((s, i) => `<span><small>${i + 1}</small> ${fmtP(s)}</span>`).join('')}</div></div>`;
         }).join('') : '<p class="lead">No solves this day.</p>',
-        long = new Date(cal.sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        long = longDay(cal.sel);
   open(`<h3>Calendar</h3><div class="row"><button data-a="calm" data-d="-1">&lsaquo;</button><b style="flex:1;text-align:center">${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button data-a="calm" data-d="1">&rsaquo;</button></div><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}${cells}</div><div class="row dayhead"><b>${long}</b><span class="sp"></span><button class="on" data-a="openday" data-k="${cal.sel}">${cal.sel === S.day ? 'Go to today' : 'Open this day'}</button></div>${det}`);
 }
 
@@ -192,15 +193,21 @@ const newScr = () => {
   $('#scr').textContent = view ? '' : (scr || '(this cube has no scramble)');
 };
 
+// New scramble, reset timer and message.
+const fresh = () => { newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); };
+
+const volume = () => (S.set.vol ?? 60) / 100;
+// connect nodes in a chain: link(a, b, c) = a -> b -> c
+const link = (...n) => n.reduce((a, b) => (a.connect(b), b));
+
 function beep(f) {
   if (!S.set.snd) return;
   try {
     const c = new AudioContext(), o = c.createOscillator();
     o.frequency.value = f;
     const g = c.createGain();
-    g.gain.value = (S.set.vol ?? 60) / 100;
-    o.connect(g);
-    g.connect(c.destination);
+    g.gain.value = volume();
+    link(o, g, c.destination);
     o.start();
     setTimeout(() => { o.stop(); c.close(); }, 180);
   } catch (e) {}
@@ -241,7 +248,7 @@ function render() {
   const vb = $('#vb');
   vb.hidden = !view;
   if (view) {
-    vb.innerHTML = `<span>Viewing <b>${new Date(view + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</b> · read-only</span><span class="sp"></span><button data-a="today">Back to today</button>`;
+    vb.innerHTML = `<span>Viewing <b>${longDay(view)}</b> · read-only</span><span class="sp"></span><button data-a="today">Back to today</button>`;
     tm.textContent = d.solves.length ? fmtS(d.solves[d.solves.length - 1]) : '–';
     $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
   }
@@ -297,7 +304,8 @@ const hist = id => Object.keys(S.hist || {}).sort().map(k => S.hist[k][id]).filt
       pastSolves = id => hist(id).flatMap(x => x.solves),
       pastRounds = id => hist(id).flatMap(x => x.rounds),
       allSolves = id => pastSolves(id).concat((S.data[id] || { solves: [] }).solves),
-      todayCount = () => Object.values(S.data).reduce((a, x) => a + x.solves.length, 0),
+      sum = o => Object.values(o).reduce((a, e) => a + e.solves.length, 0),
+      todayCount = () => sum(S.data),
       buzz = ms => { if (S.set.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} };
 
 // small helpers
@@ -463,7 +471,7 @@ const DNFL = {
 
 // ---- Sounds and effects ----
 function jingle(notes, step = 0.11, len = 0.16) {
-  const vol = (S.set.vol ?? 60) / 100 * 0.6;
+  const vol = volume() * 0.6;
   if (!S.set.sfx || vol <= 0) return;
   try {
     const c = new AudioContext();
@@ -475,8 +483,7 @@ function jingle(notes, step = 0.11, len = 0.16) {
         o.frequency.value = f;
         g.gain.setValueAtTime(vol / Math.sqrt(fs.length), t);
         g.gain.exponentialRampToValueAtTime(0.001, t + len);
-        o.connect(g);
-        g.connect(c.destination);
+        link(o, g, c.destination);
         o.start(t);
         o.stop(t + len + 0.02);
       });
@@ -507,7 +514,7 @@ const TUNES = [
 
 // Plays a ~6 second happy tune. Returns false when music is off, so the caller can fall back to the short jingle.
 function pbMusic(big) {
-  const vol = (S.set.vol ?? 60) / 100 * 0.5;
+  const vol = volume() * 0.5;
   if (!S.set.sfx || S.set.pbm === false || vol <= 0) return false;
   try {
     const T = pk(TUNES), c = new AudioContext(), b = 60 / T.bpm, t0 = c.currentTime + 0.05;
@@ -517,13 +524,9 @@ function pbMusic(big) {
     dly.delayTime.value = b * 0.75;
     fb.gain.value = 0.22;
     wet.gain.value = 0.28;
-    out.connect(comp);
-    out.connect(dly);
-    dly.connect(fb);
-    fb.connect(dly);
-    dly.connect(wet);
-    wet.connect(comp);
-    comp.connect(c.destination);
+    link(out, comp);
+    link(out, dly, fb, dly);
+    link(dly, wet, comp, c.destination);
     const nb = c.createBuffer(1, Math.round(c.sampleRate * 0.3), c.sampleRate), nd = nb.getChannelData(0);
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 
@@ -536,8 +539,7 @@ function pbMusic(big) {
       e.gain.exponentialRampToValueAtTime(g, t + 0.015);
       e.gain.exponentialRampToValueAtTime(g * s, t + d * 0.6);
       e.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.connect(e);
-      e.connect(out);
+      link(o, e, out);
       o.start(t);
       o.stop(t + d + 0.03);
     };
@@ -549,9 +551,7 @@ function pbMusic(big) {
       fl.frequency.value = f;
       e.gain.setValueAtTime(g, t);
       e.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      s.connect(fl);
-      fl.connect(e);
-      e.connect(out);
+      link(s, fl, e, out);
       s.start(t);
       s.stop(t + d + 0.02);
     };
@@ -561,8 +561,7 @@ function pbMusic(big) {
       o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
       e.gain.setValueAtTime(0.7, t);
       e.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-      o.connect(e);
-      e.connect(out);
+      link(o, e, out);
       o.start(t);
       o.stop(t + 0.2);
     };
@@ -808,7 +807,7 @@ function react(s, why) {
   // ---- opening line: greeting on the first solve of the day, a note on the first solve of each cube ----
   if (dayFirst) {
     const hr = new Date().getHours(), dsn = streak() + 1, y = new Date(),
-          ysum = (y.setDate(y.getDate() - 1), Object.values(dayData(dkey(y))).reduce((a, z) => a + z.solves.length, 0)),
+          ysum = (y.setDate(y.getDate() - 1), sum(dayData(dkey(y)))),
           last = Object.keys(S.hist).filter(k => k < S.day && Object.values(S.hist[k]).some(z => z.solves.length)).sort().pop(),
           away = last ? Math.round((new Date(S.day) - new Date(last)) / 864e5) : 0, rc = S.rec.days || 0;
     x.pre.push(hr < 5 ? 'Burning the midnight oil? 🌙' : hr < 12 ? 'Good morning! ☀️' : hr < 17 ? 'Good afternoon! 🌤️' : hr < 22 ? 'Good evening! 🌆' : 'Late-night session! 🌙', pk(P.hi));
@@ -870,7 +869,7 @@ const streak = () => {
 
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
 function goalPanel() {
-  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => Object.values(dayData(k)).reduce((a, y) => a + y.solves.length, 0),
+  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => sum(dayData(k)),
         gc = cnt(key), sk = view ? 0 : streak(), bestSk = Math.max(S.rec ? S.rec.days || 0 : 0, sk), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
   let h = '';
   if (gl) h += `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
@@ -1172,14 +1171,14 @@ dl.addEventListener('click', e => {
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
   else if (a === 'rst') { if (confirm('Reset all settings to their defaults? Your solves are not touched.')) { S.set = defSet(); applyTheme(); save(); render(); settings(); } }
-  else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); }
-  else if (a === 'cube') { S.cur = b.dataset.i; save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close(); }
+  else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); fresh(); }
+  else if (a === 'cube') { S.cur = b.dataset.i; save(); fresh(); dl.close(); }
   else if (a === 'addcube') {
     const n = $('#cn').value.trim();
     if (!n) { $('#cn').focus(); return; }
     (S.custom = S.custom || []).push({ id: 'c' + Date.now(), n, t: $('#ct').value, meth: null });
     S.cur = S.custom[S.custom.length - 1].id;
-    save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); dl.close();
+    save(); fresh(); dl.close();
   } else if (a === 'rmcube') {
     const c = allCubes().find(x => x.id === b.dataset.i);
     if (c && confirm('Remove ' + c.n + ' and all its solves?')) {
@@ -1202,8 +1201,7 @@ dl.addEventListener('click', e => {
     i.accept = '.json';
     i.onchange = () => i.files[0].text().then(t => { try { S = JSON.parse(t); save(); location.reload(); } catch (x) { alert('Invalid file'); } });
     i.click();
-  } else if (a === 'p2') { s.p = s.p === 2 ? 0 : 2; repb(S.cur); save(); render(); dl.close(); }
-  else if (a === 'dnf') { s.p = s.p === 'D' ? 0 : 'D'; repb(S.cur); save(); render(); dl.close(); }
+  } else if (a === 'p2' || a === 'dnf') { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; repb(S.cur); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes') { S.data[S.cur] = { solves: [], rounds: [], round: 1 }; repb(S.cur); save(); tm.textContent = '0.00'; render(); dl.close(); }
   else if (a === 'delall') open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
@@ -1216,7 +1214,7 @@ document.addEventListener('click', e => {
   b.blur();
   if (a === 'cubes' && mode === 'idle') cubePicker();
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
-  else if (a === 'today') { view = null; newScr(); tm.textContent = '0.00'; $('#msg').textContent = ''; render(); }
+  else if (a === 'today') { view = null; fresh(); }
   else if (a === 'rules') {
     open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
   } else if (a === 'set') settings();
