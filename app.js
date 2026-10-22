@@ -61,8 +61,11 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20,
-  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true
+  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, wallDim: 45
 });
+
+let WALL = '';
+try { WALL = localStorage.getItem('ct2wall') || ''; } catch (e) {}
 
 const FONTS = { system: 'inherit', mono: 'ui-monospace, Menlo, Consolas, monospace', serif: "Georgia, 'Times New Roman', serif", rounded: "ui-rounded, 'Segoe UI', system-ui, sans-serif" };
 
@@ -184,6 +187,9 @@ function applyTheme() {
   r.setProperty('--fs', s.fs + 'px');
   r.setProperty('--ss', s.ss + 'px');
   $('#scr').style.display = s.showScr ? '' : 'none';
+  const dim = Math.max(0, Math.min(90, s.wallDim ?? 45)), tint = `color-mix(in srgb, ${s.bg} ${dim}%, transparent)`;
+  document.documentElement.style.backgroundImage = WALL ? `linear-gradient(${tint}, ${tint}), url("${WALL}")` : '';
+  document.body.classList.toggle('has-wall', !!WALL);
 }
 
 let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0, pen = 0, b8 = 0, b12 = 0;
@@ -1099,7 +1105,7 @@ document.addEventListener('pointerdown', e => {
 ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (!dl.open) up(); }));
 
 const open = h => {
-  dl.innerHTML = '<div class="dc"><button data-a="close" class="x" aria-label="Close" title="Close">&times;</button>' + h + '</div>';
+  dl.innerHTML = '<div class="dc"><div class="xw"><button data-a="close" class="x" aria-label="Close" title="Close">&times;</button></div>' + h + '</div>';
   if (!dl.open) dl.showModal();
 };
 
@@ -1115,8 +1121,18 @@ const RULES = [
 ];
 
 function cubePicker() {
-  const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${c.n}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`;
-  open(`<h3>Choose a cube</h3><div class="cubes">${allCubes().map(one).join('')}</div><h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
+  const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${esc(c.n)}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
+        all = allCubes(), std = ['2', '3', '4', '5', '6', '7', 'oh'], oth = ['pyra', 'skewb', 'mega'],
+        grp = (t, f) => { const l = all.filter(f); return l.length ? `<h4>${t}</h4><div class="cubes">${l.map(one).join('')}</div>` : ''; };
+  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
+}
+
+function wallPrev() {
+  const el = $('#wp');
+  if (!el) return;
+  el.style.backgroundImage = WALL ? `url("${WALL}")` : '';
+  el.classList.toggle('empty', !WALL);
+  el.textContent = WALL ? '' : 'No picture';
 }
 
 function settings() {
@@ -1127,12 +1143,14 @@ function settings() {
         sl = (k, l, o) => `<label class="set">${l}<select data-k="${k}">${o.map(x => `<option value="${x[0]}" ${s[k] == x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></label>`;
   open(`<h3>Settings</h3>
 <h4>Theme and colors</h4>${sl('theme', 'Theme', [['dark', 'dark'], ['light', 'light'], ['custom', 'custom']])}${col('bg', 'Background')}${col('fg', 'Text')}${col('ac', 'Accent')}${col('rd', 'Ready color (green)')}${col('hd', 'Hold color (red)')}
+<h4>Wallpaper</h4><div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden>${r('wallDim', 'Darkness over the picture (%)', 0, 90, 5)}<p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>
 <h4>Layout</h4>${r('ui', 'Interface size (%)', 70, 150, 5)}${r('rad', 'Corner roundness (px)', 0, 24, 1)}${r('th', 'Timer area height (%)', 30, 70, 2)}${c('showScr', 'Show scramble')}${c('showRs', 'Show 1st to 5th solve boxes')}${c('showSt', 'Show stats (best, mean, ao5)')}${c('showSide', 'Show side column (rounds, delete)')}
 <h4>Text</h4>${sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']])}${r('tw', 'Timer weight', 300, 800, 100)}${r('fs', 'Timer size', 40, 200, 2)}${r('ss', 'Scramble size', 12, 36, 1)}${c('sfm', 'Monospace scramble')}${sl('dec', 'Decimals', [[2, '2'], [3, '3']])}
 <h4>Timing and sound</h4>${r('hold', 'Hold time (ms)', 0, 1000, 50)}${c('insp', '15 s inspection')}${c('snd', 'Inspection beeps')}${r('vol', 'Beep volume (%)', 0, 100, 5)}${c('auto', 'Auto rounds (new round after each ao5)')}${c('focus', 'Focus mode (hide everything while solving)')}${c('hide', 'Hide time while solving')}${c('secs', 'Show whole seconds only while solving')}
 <h4>Reactions and fun</h4>${sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']])}${sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']])}${c('brk', 'Suggest a break after several slow solves')}${r('goal', 'Daily solve goal (0 = off)', 0, 200, 5)}
 <h4>Effects</h4>${c('fx', 'Confetti and glow')}${r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1)}${c('sfx', 'Sound effects')}${c('pbm', 'Joyful music on a new PB')}${c('rdy', 'Blip when the timer turns green')}${c('vib', 'Vibration (phones)')}<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>
 <div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">${view ? '' : '<button data-a="delall">Delete everything</button>'}<button data-a="rst">Reset settings</button></span></div>`);
+  wallPrev();
 }
 
 dl.addEventListener('input', e => {
@@ -1170,6 +1188,8 @@ dl.addEventListener('click', e => {
   if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
+  else if (a === 'wpick') $('#wf').click();
+  else if (a === 'wrm') { WALL = ''; try { localStorage.removeItem('ct2wall'); } catch (err) {} applyTheme(); wallPrev(); }
   else if (a === 'rst') { if (confirm('Reset all settings to their defaults? Your solves are not touched.')) { S.set = defSet(); applyTheme(); save(); render(); settings(); } }
   else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); fresh(); }
   else if (a === 'cube') { S.cur = b.dataset.i; save(); fresh(); dl.close(); }
@@ -1223,7 +1243,7 @@ document.addEventListener('click', e => {
   else if (a === 'solve') {
     sel = +b.dataset.i;
     const s = D().solves[sel];
-    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}">DNF</button><button data-a="del">Delete</button></div>`}`);
+    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
   } else if (a === 'x' && mode === 'idle') {
     delSolve(+b.dataset.i);
   } else if (a === 'undo') {
@@ -1274,6 +1294,25 @@ function methods(m, t) {
 }
 
 dl.addEventListener('change', e => {
+  if (e.target.id === 'wf') {
+    const f = e.target.files[0];
+    if (!f) return;
+    const img = new Image(), u = URL.createObjectURL(f);
+    img.onload = () => {
+      const m = Math.min(1, 1920 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * m); c.height = Math.round(img.height * m);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.82, d = c.toDataURL('image/jpeg', q);
+      while (d.length > 2.5e6 && q > 0.3) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
+      URL.revokeObjectURL(u);
+      try { localStorage.setItem('ct2wall', d); WALL = d; } catch (err) { alert('This picture is too big to save in this browser. Try a smaller one.'); }
+      applyTheme(); wallPrev();
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); alert('Could not read that picture.'); };
+    img.src = u;
+    e.target.value = '';
+    return;
+  }
   const a = e.target.dataset.alg;
   if (a === undefined) return;
   if (e.target.checked) S.known[a] = 1;

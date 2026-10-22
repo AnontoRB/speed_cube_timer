@@ -1,60 +1,91 @@
+/* ==========================================================
+   CubeTimer styles
+   1. Variables  2. Base  3. Header  4. Timer  5. Stats
+   6. Side column  7. Dialogs  8. Settings  9. Methods
+   10. Cubes  11. Calendar  12. Messages  13. Effects
+   14. Responsive (desktop > tablet > phone > landscape > touch)
+   ========================================================== */
+
+/* 1. VARIABLES ---------------------------------------------- */
 :root {
-  --bg: #14161a; --fg: #eef0f3; --ac: #5b9dff; --rd: #2ecc71; --fs: 96px; --ss: 18px;
-  --btn-gap: 10px; /* the space between neighbouring buttons, used everywhere */
+  --bg: #14161a; --fg: #eef0f3; --ac: #5b9dff; --rd: #2ecc71;
+  --fs: 96px;            /* timer size (setting) */
+  --ss: 18px;            /* scramble size (setting) */
+  --btn-gap: 10px;       /* space between neighbouring buttons */
+  --tap: 36px;           /* minimum button height (44px on touch screens) */
   --mut: color-mix(in srgb, var(--fg) 55%, var(--bg));
   --card: color-mix(in srgb, var(--fg) 9%, var(--bg));
+  --line: color-mix(in srgb, var(--fg) 15%, var(--bg));
+  --zoom: calc(var(--z, 1) * var(--ui, 1));
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* 2. BASE --------------------------------------------------- */
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
-body { width: 100%; padding: 10px 20px; user-select: none; -webkit-user-select: none; zoom: calc(var(--z, 1) * var(--ui, 1)); }
-header, .row { display: flex; align-items: center; gap: var(--btn-gap); }
-header { flex-wrap: wrap; }
+body {
+  width: 100%; user-select: none; -webkit-user-select: none; zoom: var(--zoom);
+  padding: 10px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; min-height: calc(100dvh / var(--zoom));
+}
+html { background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed; }
+#wrap { flex: 1; }
+#mn { display: flex; flex-direction: column; }
+#tz { flex: 1; }
+.row { display: flex; align-items: center; gap: var(--btn-gap); }
 .sp { flex: 1; }
-button, select { background: var(--card); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 20%, var(--bg)); border-radius: var(--rad, 8px); padding: 7px 11px; font: inherit; cursor: pointer; }
+button, select { background: var(--card); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 20%, var(--bg)); border-radius: var(--rad, 8px); padding: 7px 11px; min-height: var(--tap); font: inherit; cursor: pointer; }
 button:hover { border-color: var(--ac); }
 button.on { background: var(--ac); color: #fff; border-color: var(--ac); }
+li { margin: 5px 0; }
+.lead { color: var(--mut); margin: 6px 0; }
 
-/* top bar: cube picker (logo), date and menu buttons */
+/* 3. HEADER (cube picker, date, menu) ------------------------ */
+header { display: flex; align-items: center; flex-wrap: wrap; gap: var(--btn-gap); }
 header .menu { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
 #logo { background: transparent; border-color: transparent; padding: 4px 8px; font-size: 1.2em; }
 #logo:hover { border-color: var(--ac); }
 #ev { font-size: .65em; font-weight: 600; background: var(--ac); color: #fff; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
 #dt { white-space: nowrap; }
 
-/* scramble, timer and messages */
-#scr { font-size: var(--ss); font-family: var(--sf, ui-monospace, Menlo, Consolas, monospace); text-align: center; line-height: 1.5; white-space: pre-line; min-height: 2.6em; padding: 6px; }
+/* 4. SCRAMBLE, TIMER, MESSAGE -------------------------------- */
+#scr { font-size: var(--ss); font-family: var(--sf, ui-monospace, Menlo, Consolas, monospace); text-align: center; line-height: 1.5; white-space: pre-line; min-height: 2.6em; padding: 6px; overflow-wrap: anywhere; }
 #tz { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--th, 42vh); border-radius: calc(var(--rad, 8px) * 2); background: var(--card); margin: 6px 0; touch-action: manipulation; }
-#tm { font-size: var(--fs); font-family: var(--tf, inherit); font-weight: var(--tw, 600); font-variant-numeric: tabular-nums; }
+#tm { font-size: min(var(--fs), 24vw); font-family: var(--tf, inherit); font-weight: var(--tw, 600); font-variant-numeric: tabular-nums; max-width: 100%; }
 #tm.hold { color: var(--hd, #e74c3c); }
 #tm.ready { color: var(--rd); }
 #tm.insp { color: var(--ac); }
 body.view #tm { color: var(--mut); }
 #msg { color: var(--mut); min-height: 7.5em; max-width: 46em; width: 100%; margin: 0 auto; text-align: center; padding: 0 8px; }
-#msg button { padding: 2px 8px; margin-left: 4px; }
+#msg button { padding: 2px 8px; margin-left: 4px; min-height: 0; }
 
-/* the five solve boxes and the stats row */
+/* viewing a past day (read-only) */
+#vb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin: 8px 0; border: 1px solid var(--ac); border-radius: 10px; background: color-mix(in srgb, var(--ac) 14%, var(--bg)); }
+#vb[hidden] { display: none; }
+
+/* focus mode: only the timer is visible while solving */
+body.run header, body.run #scr, body.run #st, body.run #rs, body.run .row, body.run #rd { visibility: hidden; }
+body.run #tz { background: transparent; }
+
+/* 5. LAST 5 SOLVES + STATS ----------------------------------- */
 #st, #rs { display: grid; gap: 8px; margin: 8px 0; }
 #st { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 #rs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 #st div, #rs div { background: var(--card); border-radius: calc(var(--rad, 8px) * 1.25); }
 #st div { padding: 8px 10px; }
-#rs div { padding: 8px 6px; position: relative; }
+#rs div { padding: 8px 6px; position: relative; min-width: 0; }
 #st small, #rs small { display: block; color: var(--mut); }
 #st b, #rs b { font-size: 1.15em; font-variant-numeric: tabular-nums; }
 #rs .g, #rd .g { color: var(--rd); }
 #rs .r, #rd .r { color: #e74c3c; }
 #rs .pick { cursor: pointer; }
 #rs .pick:hover { outline: 1px solid var(--ac); }
+body.no-rs #rs, body.no-st #st, body.no-side #side { display: none; }
 
-/* focus mode: hide everything but the timer while solving */
-body.run header, body.run #scr, body.run #st, body.run #rs, body.run .row, body.run #rd { visibility: hidden; }
-body.run #tz { background: transparent; }
-
-/* right column: rounds, goal, last 7 days, today's numbers */
-#rd div { padding: 5px 0; border-top: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg)); color: var(--mut); }
+/* 6. SIDE COLUMN (rounds, goal, week, today) ----------------- */
+#rd div { padding: 5px 0; border-top: 1px solid var(--line); color: var(--mut); }
 #rd b { color: var(--fg); }
 #goal { margin: 12px 0; }
 #goal:empty { display: none; }
@@ -74,52 +105,45 @@ body.run #tz { background: transparent; }
 .tsum div { background: var(--card); border-radius: var(--rad, 8px); padding: 5px 8px; }
 .tsum small { display: block; }
 .tsum b { font-variant-numeric: tabular-nums; }
-body.no-rs #rs, body.no-st #st, body.no-side #side { display: none; }
 
-/* viewing a past day (read-only) */
-#vb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin: 8px 0; border: 1px solid var(--ac); border-radius: 10px; background: color-mix(in srgb, var(--ac) 14%, var(--bg)); }
-#vb[hidden] { display: none; }
-
-/* popup windows: x at the top right, click outside to close */
-dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--mut); border-radius: calc(var(--rad, 8px) * 1.75); max-width: min(560px, calc(94vw / (var(--z, 1) * var(--ui, 1)))); width: 100%; max-height: calc(88vh / (var(--z, 1) * var(--ui, 1))); padding: 0; user-select: text; }
+/* 7. DIALOGS (x top right, click outside closes) -------------- */
+dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--mut); border-radius: calc(var(--rad, 8px) * 1.75); max-width: min(560px, calc(94vw / var(--zoom))); width: 100%; max-height: calc(88vh / var(--zoom)); padding: 0; user-select: text; }
 dialog::backdrop { background: #0008; }
-dialog h3 { margin: 0 0 8px; }
 dialog h4 { margin: 14px 0 2px; color: var(--ac); }
 dialog h4:first-of-type { margin-top: 6px; }
-dialog input, dialog textarea { background: var(--card); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 20%, var(--bg)); border-radius: 8px; padding: 7px 11px; font: inherit; }
-dialog .x { position: sticky; top: 0; float: right; z-index: 1; margin: -4px -4px 0 8px; padding: 0 11px; font-size: 1.5em; line-height: 1.4; }
+dialog input, dialog textarea { background: var(--card); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 20%, var(--bg)); border-radius: 8px; padding: 7px 11px; font: inherit; max-width: 100%; }
+dialog .xw { position: sticky; top: 0; height: 0; z-index: 2; text-align: right; }
+dialog .x { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; font-size: 1.4em; line-height: 1; margin: -4px -4px 0 0; }
+dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right: 44px; margin: 0 0 8px; }
 .dc { padding: 16px; }
-li { margin: 5px 0; }
-.lead { color: var(--mut); margin: 6px 0; }
 .tabs { margin: 8px 0; flex-wrap: wrap; }
 .tg { font-size: .75em; padding: 1px 6px; border-radius: 6px; background: var(--rd); color: #000; margin-right: 4px; }
 .tg.h { background: var(--mut); color: var(--bg); }
 
-/* settings */
+/* 8. SETTINGS + BUTTON ROWS ---------------------------------- */
 .set { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; }
 .set input[type=range] { width: 50%; }
-/* a row of action buttons: same gap as everywhere, wraps on narrow screens, same space above */
 .btns { flex-wrap: wrap; justify-content: space-between; margin-top: 16px; }
-/* buttons that belong together stay side by side; the groups wrap as whole units */
 .bg { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
 
-/* methods and algs */
-.alg { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg)); align-items: center; cursor: pointer; }
+/* 9. METHODS + ALGS ------------------------------------------ */
+.alg { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); align-items: center; cursor: pointer; }
 .alg b { min-width: 64px; }
-.alg code { text-align: right; white-space: pre-line; font: 13px ui-monospace, Menlo, Consolas, monospace; flex: 1; }
+.alg code { text-align: right; white-space: pre-line; font: 13px ui-monospace, Menlo, Consolas, monospace; flex: 1; overflow-wrap: anywhere; }
 .alg input { width: 18px; height: 18px; flex: none; accent-color: var(--ac); }
 .alg:has(input:checked) b { color: var(--rd); }
 .notes { width: 100%; min-height: 240px; resize: vertical; }
 
-/* cube picker */
-.cubes { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--btn-gap); margin: 10px 0; }
+/* 10. CUBE PICKER -------------------------------------------- */
+.cubes { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--btn-gap); margin: 6px 0 4px; }
 .cb { display: flex; }
 .cb > button:first-child { flex: 1; }
 .cb .rm { margin-left: 4px; padding: 7px 9px; }
 .add { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
-.add input { flex: 1; min-width: 150px; }
+.add input { flex: 1 1 100%; }
+.add select { flex: 1; min-width: 0; }
 
-/* calendar and day summary */
+/* 11. CALENDAR + DAY SUMMARY --------------------------------- */
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--btn-gap); margin: 8px 0; }
 .cal span { text-align: center; color: var(--mut); font-size: .8em; }
 .cal button { padding: 6px 0; display: flex; flex-direction: column; align-items: center; line-height: 1.2; min-height: 2.6em; }
@@ -127,8 +151,8 @@ li { margin: 5px 0; }
 .cal button.td { box-shadow: inset 0 0 0 1px var(--ac); }
 .cal small { font-size: .7em; opacity: .8; }
 .dayhead { margin: 12px 0 4px; flex-wrap: wrap; }
-.dcard { background: color-mix(in srgb, var(--fg) 5%, var(--bg)); border: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg)); border-radius: 12px; padding: 4px 12px 12px; margin: 10px 0; }
-.dsum { padding: 8px 0; border-top: 1px solid color-mix(in srgb, var(--fg) 15%, var(--bg)); }
+.dcard { background: color-mix(in srgb, var(--fg) 5%, var(--bg)); border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px 12px; margin: 10px 0; }
+.dsum { padding: 8px 0; border-top: 1px solid var(--line); }
 .dtl { color: var(--mut); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .dtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 8px 0; }
 .dtiles div { background: var(--card); border-radius: 8px; padding: 6px 8px; }
@@ -137,11 +161,11 @@ li { margin: 5px 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chips span { background: var(--card); border-radius: 6px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
 .chips small { color: var(--mut); }
-.chips span.ok { outline: 1px solid var(--rd); } /* sub-X badges in Records */
+.chips span.ok { outline: 1px solid var(--rd); }
 .chips span.nx { outline: 1px solid var(--ac); }
 .chips span.lk { opacity: .5; }
 
-/* detailed reactions: opening line, headline, number chips, events, tip */
+/* 12. DETAILED REACTIONS ------------------------------------- */
 .rx { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .rx-g { color: var(--mut); font-size: .9em; }
 .rx-h { line-height: 1.4; color: var(--fg); }
@@ -159,7 +183,7 @@ li { margin: 5px 0; }
 #msg .round { color: var(--fg); }
 #msg .tip { color: var(--mut); }
 
-/* glow and pop when something big happens */
+/* 13. EFFECTS ------------------------------------------------ */
 @keyframes pbpop { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 100% { transform: scale(1); } }
 @keyframes pbglow { 0% { box-shadow: 0 0 0 0 #f1c40f00; } 25% { box-shadow: 0 0 60px 8px #f1c40f88; } 100% { box-shadow: 0 0 0 0 #f1c40f00; } }
 @keyframes cheerglow { 0% { box-shadow: 0 0 0 0 transparent; } 25% { box-shadow: 0 0 50px 4px color-mix(in srgb, var(--ac) 55%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
@@ -170,18 +194,122 @@ li { margin: 5px 0; }
 #goal.flash .gbar { animation: goalflash 1s ease; }
 @media (prefers-reduced-motion: reduce) { #tm.pbflash, #tz.pbglow, #tz.cheer, #goal.flash .gbar { animation: none; } }
 
-/* wide screens: empty column on the right, modest scale-up */
+/* 14. RESPONSIVE ---------------------------------------------
+   Large desktop > desktop > tablet > phone > landscape phone > touch */
+
+/* desktop: timer on the left, side column on the right */
 @media (min-width: 801px) {
-  #wrap { display: flex; gap: 20px; align-items: flex-start; }
+  #wrap { display: flex; gap: 16px; align-items: stretch; }
   #mn { flex: 1; min-width: 0; }
-  #side { flex: none; width: clamp(200px, 17%, 300px); margin-top: 10px; }
-  #side .row { flex-wrap: wrap; }
+  #side { flex: none; width: clamp(220px, 20%, 340px); margin: 6px 0; padding: 14px; display: flex; flex-direction: column; gap: 6px;
+          background: var(--card); border-radius: calc(var(--rad, 8px) * 2); }
+  #side .row { flex-wrap: wrap; font-size: 1.05em; }
+  #goal { margin: 6px 0; }
+  #rd { flex: 1; min-height: 0; overflow-y: auto; }
+  #side .tsum div, #side .gbar { background: color-mix(in srgb, var(--fg) 8%, var(--card)); }
 }
 @media (min-width: 1300px) { :root { --z: 1.1; } }
 @media (min-width: 1750px) { :root { --z: 1.2; } }
-/* narrow screens: menu buttons first, then the timer, then the summary */
+
+/* tablet and below: single column, menu, timer, summary */
 @media (max-width: 800px) {
   #wrap { display: flex; flex-direction: column; }
   #side { display: contents; }
+  #mn { display: block; }
   #side .row { margin-top: 6px; }
+  header .menu { flex: 1 1 100%; }
+  header .menu > button { flex: 1 1 auto; }
+  #st { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 }
+
+/* phone portrait */
+@media (max-width: 600px) {
+  body { padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+  header .menu { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+  header .menu > button { padding: 7px 4px; }
+  #scr { font-size: clamp(13px, 4.2vw, var(--ss)); }
+  #tz { min-height: min(var(--th, 42vh), 46vh); }
+  #msg { min-height: 5em; font-size: .95em; }
+  #rs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #st { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .set { flex-wrap: wrap; }
+  .set input[type=range] { width: 100%; }
+  .btns { justify-content: stretch; }
+  .btns > button, .btns > .bg { flex: 1 1 auto; }
+  .cubes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cal { gap: 4px; }
+  .alg { flex-wrap: wrap; }
+  .alg code { text-align: left; flex-basis: 100%; }
+  /* dialogs use the whole screen */
+  dialog { max-width: calc(100vw / var(--zoom)); max-height: calc(100dvh / var(--zoom)); height: calc(100dvh / var(--zoom)); border-radius: 0; border: 0; }
+  .dc { padding: 12px; }
+}
+
+/* very small phones */
+@media (max-width: 360px) {
+  header .menu { grid-template-columns: repeat(2, 1fr); }
+  #rs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* phone or tablet turned sideways (short screens) */
+@media (max-height: 520px) and (orientation: landscape) {
+  body { padding-top: 4px; padding-bottom: 4px; }
+  #scr { min-height: 1.6em; padding: 2px; font-size: clamp(12px, 2.4vw, var(--ss)); }
+  #tz { min-height: 48vh; margin: 2px 0; }
+  #tm { font-size: min(var(--fs), 28vh); }
+  #msg { min-height: 2.5em; }
+  header .menu { display: flex; flex: 1; }
+}
+
+/* touch screens: bigger tap targets */
+@media (pointer: coarse) {
+  :root { --tap: 44px; }
+  .alg { padding: 10px 0; }
+  .alg input { width: 24px; height: 24px; }
+  .cal button { min-height: 3em; }
+  dialog .x { min-width: 44px; }
+}
+
+/* 15. BUTTON SYSTEM ------------------------------------------
+   default = quiet, .on = selected/primary, .danger = destructive,
+   .seg = a group of on/off choices joined together (like +2 | DNF) */
+button { transition: background .12s, border-color .12s, transform .05s; }
+button:active:not(:disabled) { transform: scale(.97); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.on:hover { filter: brightness(1.1); }
+
+button.danger, button[data-a=del], button[data-a=delall], button[data-a=rmcube], button[data-a=rst] {
+  color: #ff6b5e; border-color: color-mix(in srgb, #e74c3c 50%, var(--bg)); background: transparent;
+}
+button.danger:hover, button[data-a=del]:hover, button[data-a=delall]:hover, button[data-a=rmcube]:hover, button[data-a=rst]:hover {
+  background: #e74c3c; color: #fff; border-color: #e74c3c;
+}
+
+/* joined choice buttons */
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; min-width: 64px; margin-left: -1px; }
+.seg button:first-child { border-radius: var(--rad, 8px) 0 0 var(--rad, 8px); margin-left: 0; }
+.seg button:last-child { border-radius: 0 var(--rad, 8px) var(--rad, 8px) 0; }
+.seg button.on, .seg button:hover { position: relative; z-index: 1; }
+
+/* solve window: choices left, delete alone on the right */
+.btns { align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* tabs (methods): pill shape */
+.tabs button { border-radius: 99px; padding-left: 14px; padding-right: 14px; }
+
+@media (max-width: 600px) {
+  .seg { flex: 1 1 60%; }
+  .seg button { flex: 1; }
+  .btns > button.danger, .btns > button[data-a=del] { flex: 1 1 30%; }
+}
+
+/* 16. WALLPAPER ---------------------------------------------
+   The picture sits on <html>. Panels turn slightly see-through and blurred
+   so text stays readable on any picture. */
+body.has-wall { background: transparent; --card: color-mix(in srgb, color-mix(in srgb, var(--fg) 10%, var(--bg)) 72%, transparent); }
+body.has-wall #tz, body.has-wall #side, body.has-wall #st div, body.has-wall #rs div, body.has-wall .dtiles div, body.has-wall .tsum div { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+body.has-wall dialog { background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.wall { display: flex; align-items: center; gap: var(--btn-gap); flex-wrap: wrap; margin: 6px 0; }
+.wp { width: 96px; height: 56px; border-radius: var(--rad, 8px); background: var(--card) center / cover no-repeat; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--mut); font-size: .75em; }
