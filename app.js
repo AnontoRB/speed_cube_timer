@@ -166,7 +166,7 @@ function calendar(key) {
   const day = dayData(cal.sel), ids = Object.keys(day), tile = (l, x) => `<div><small>${l}</small><b>${x}</b></div>`,
         det = ids.length ? ids.map(id => {
           const e = day[id], v = e.solves.map(val), [b, m, , ba] = stats(arr(v)), tot = v.filter(isFinite).reduce((a, c) => a + c, 0), cn = allCubes().find(c => c.id === id), pbn = e.solves.filter(x => x.pb).length, dnn = e.solves.filter(x => x.p === 'D').length;
-          return `<div class="dcard"><h4>${cn ? cn.n : id}</h4><div class="dtiles">${tile('Solves', e.solves.length)}${tile('Best', fx(b))}${tile('Mean', fx(m))}${tile('Best ao5', fx(ba))}${tile('Time spent', dur(tot))}${pbn ? tile('PBs ★', pbn) : ''}${dnn ? tile('DNFs', dnn) : ''}</div><div class="chips">${e.solves.map((s, i) => `<span><small>${i + 1}</small> ${fmtP(s)}</span>`).join('')}</div></div>`;
+          return `<div class="dcard"><h4>${esc(cn ? cn.n : id)}</h4><div class="dtiles">${tile('Solves', e.solves.length)}${tile('Best', fx(b))}${tile('Mean', fx(m))}${tile('Best ao5', fx(ba))}${tile('Time spent', dur(tot))}${pbn ? tile('PBs ★', pbn) : ''}${dnn ? tile('DNFs', dnn) : ''}</div><div class="chips">${e.solves.map((s, i) => `<span><small>${i + 1}</small> ${fmtP(s)}</span>`).join('')}</div></div>`;
         }).join('') : '<p class="lead">No solves this day.</p>',
         long = longDay(cal.sel);
   open(`<h3>Calendar</h3><div class="row"><button data-a="calm" data-d="-1">&lsaquo;</button><b style="flex:1;text-align:center">${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button data-a="calm" data-d="1">&rsaquo;</button></div><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}${cells}</div><div class="row dayhead"><b>${long}</b><span class="sp"></span><button class="on" data-a="openday" data-k="${cal.sel}">${cal.sel === S.day ? 'Go to today' : 'Open this day'}</button></div>${det}`);
@@ -264,6 +264,12 @@ function render() {
 
 // Rebuild finished-round records from the solves, so deleting/restoring a time keeps them correct.
 function fixRounds(d) {
+  // also repair the current round number, so deleting a time from a finished round reopens that round
+  if (!d.solves.length) d.round = 1;
+  else {
+    const mx = Math.max(0, ...d.solves.map(x => x.r || 0));
+    if (mx) d.round = d.solves.filter(x => x.r === mx).length >= 5 ? mx + 1 : mx;
+  }
   d.rounds = [];
   for (let n = 1; n < d.round; n++) {
     const rs = d.solves.filter(x => x.r === n);
@@ -1073,6 +1079,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'd' || e.key === 'D') s.p = s.p === 'D' ? 0 : 'D';
     else h = 0;
     if (h) {
+      fixRounds(D());
       repb(S.cur);
       save();
       render();
@@ -1184,7 +1191,7 @@ dl.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
-  if (view && ['p2', 'dnf', 'del', 'yes', 'delall'].includes(a)) return;
+  if (view && ['p2', 'dnf', 'del', 'yes1', 'yes2', 'delall'].includes(a)) return;
   if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
@@ -1204,6 +1211,8 @@ dl.addEventListener('click', e => {
     if (c && confirm('Remove ' + c.n + ' and all its solves?')) {
       S.custom = S.custom.filter(x => x.id !== c.id);
       delete S.data[c.id];
+      for (const k in S.hist) delete S.hist[k][c.id];
+      if (S.rec && S.rec.c) delete S.rec.c[c.id];
       if (S.cur === c.id) S.cur = '3';
       save(); newScr(); tm.textContent = '0.00'; render(); cubePicker();
     }
@@ -1223,8 +1232,17 @@ dl.addEventListener('click', e => {
     i.click();
   } else if (a === 'p2' || a === 'dnf') { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; repb(S.cur); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
-  else if (a === 'yes') { S.data[S.cur] = { solves: [], rounds: [], round: 1 }; repb(S.cur); save(); tm.textContent = '0.00'; render(); dl.close(); }
-  else if (a === 'delall') open(`<h3>Delete today's ${name()} times?</h3><p>This removes today's solves and rounds for this cube. Earlier days in the calendar are not touched. It cannot be undone.</p><button data-a="yes">Yes, delete session</button>`);
+  else if (a === 'yes2') {
+    // final step: wipe every solve, round, past day and record on every cube
+    S.data = {};
+    S.hist = {};
+    S.rec = { c: {}, v: 1 };
+    undoDel = null;
+    AOC = {};
+    save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = 'Everything was deleted.'; render(); dl.close();
+  }
+  else if (a === 'yes1') open(`<h3>Last chance: delete EVERYTHING?</h3><p><b>This is the final confirmation (2 of 2).</b> All solves, rounds, calendar history and records on all cubes will be permanently deleted. Your settings, wallpaper and custom cubes are kept. It cannot be undone.</p><div class="row btns"><button data-a="close">No, keep my data</button><button data-a="yes2" class="danger">Yes, delete everything now</button></div>`);
+  else if (a === 'delall') open(`<h3>Delete everything?</h3><p><b>Confirmation 1 of 2.</b> This deletes ALL your solves on ALL cubes, including today and every earlier day in the calendar, plus your records and personal bests. It cannot be undone. Tip: use Export data first if you want a backup.</p><div class="row btns"><button data-a="close">Cancel</button><button data-a="yes1" class="danger">Continue</button></div>`);
 });
 
 document.addEventListener('click', e => {
@@ -1274,7 +1292,7 @@ render();
 function methods(m, t) {
   const c = curCube();
   if (!c.meth) {
-    open(`<h3>${c.n} notes</h3><p class="lead">Your own cube. Write your method, algs or tips here. They are saved.</p><textarea id="nt" class="notes" placeholder="Method, algs, tips...">${(c.notes || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</textarea>`);
+    open(`<h3>${esc(c.n)} notes</h3><p class="lead">Your own cube. Write your method, algs or tips here. They are saved.</p><textarea id="nt" class="notes" placeholder="Method, algs, tips...">${(c.notes || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</textarea>`);
     return;
   }
   const MS = Object.fromEntries(c.meth.map(k => [k, M[k]])), st = S.view;
@@ -1289,7 +1307,7 @@ function methods(m, t) {
   save();
   const A = d.algs.filter(a => a[0] !== '#' && a[0] !== 't'),
         kn = A.filter(a => S.known[a[1]]).length;
-  open(`<h3>Methods · ${c.n} <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(MS).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${MS[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:2px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}><b>${a[0]}</b><code>${a[1]}</code></label>`).join('')}`);
+  open(`<h3>Methods · ${esc(c.n)} <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(MS).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${MS[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:2px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}><b>${a[0]}</b><code>${a[1]}</code></label>`).join('')}`);
   dl.scrollTop = 0;
 }
 
