@@ -61,7 +61,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20,
-  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, wallDim: 45
+  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, wallDim: 45, cardOp: 72
 });
 
 let WALL = '';
@@ -189,6 +189,7 @@ function applyTheme() {
   $('#scr').style.display = s.showScr ? '' : 'none';
   const dim = Math.max(0, Math.min(90, s.wallDim ?? 45)), tint = `color-mix(in srgb, ${s.bg} ${dim}%, transparent)`;
   document.documentElement.style.backgroundImage = WALL ? `linear-gradient(${tint}, ${tint}), url("${WALL}")` : '';
+  r.setProperty('--cop', Math.max(0, Math.min(100, s.cardOp ?? 72)) + '%');
   document.body.classList.toggle('has-wall', !!WALL);
 }
 
@@ -1144,19 +1145,20 @@ function wallPrev() {
 
 function settings() {
   const s = S.set,
-        c = (k, l) => `<label class="set">${l}<input type="checkbox" data-k="${k}" ${s[k] ? 'checked' : ''}></label>`,
-        r = (k, l, a, b, st) => `<label class="set">${l}: <span id="v_${k}">${s[k]}</span><input type="range" data-k="${k}" min="${a}" max="${b}" step="${st}" value="${s[k]}"></label>`,
-        col = (k, l) => `<label class="set">${l}<input type="color" data-k="${k}" value="${s[k]}"></label>`,
-        sl = (k, l, o) => `<label class="set">${l}<select data-k="${k}">${o.map(x => `<option value="${x[0]}" ${s[k] == x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></label>`;
+        c = (k, l) => `<label class="set"><span class="lb">${l}</span><input type="checkbox" data-k="${k}" ${s[k] ? 'checked' : ''}></label>`,
+        r = (k, l, a, b, st) => `<label class="set"><span class="lb">${l}: <span id="v_${k}">${s[k]}</span></span><input type="range" data-k="${k}" min="${a}" max="${b}" step="${st}" value="${s[k]}"></label>`,
+        col = (k, l) => `<label class="set"><span class="lb">${l}</span><input type="color" data-k="${k}" value="${s[k]}"></label>`,
+        sl = (k, l, o) => `<label class="set"><span class="lb">${l}</span><select data-k="${k}">${o.map(x => `<option value="${x[0]}" ${s[k] == x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></label>`,
+        g = (t, h) => `<section class="dcard sg"><h4>${t}</h4>${h}</section>`;
   open(`<h3>Settings</h3>
-<h4>Theme and colors</h4>${sl('theme', 'Theme', [['dark', 'dark'], ['light', 'light'], ['custom', 'custom']])}${col('bg', 'Background')}${col('fg', 'Text')}${col('ac', 'Accent')}${col('rd', 'Ready color (green)')}${col('hd', 'Hold color (red)')}
-<h4>Wallpaper</h4><div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden>${r('wallDim', 'Darkness over the picture (%)', 0, 90, 5)}<p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>
-<h4>Layout</h4>${r('ui', 'Interface size (%)', 70, 150, 5)}${r('rad', 'Corner roundness (px)', 0, 24, 1)}${r('th', 'Timer area height (%)', 30, 70, 2)}${c('showScr', 'Show scramble')}${c('showRs', 'Show 1st to 5th solve boxes')}${c('showSt', 'Show stats (best, mean, ao5)')}${c('showSide', 'Show side column (rounds, delete)')}
-<h4>Text</h4>${sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']])}${r('tw', 'Timer weight', 300, 800, 100)}${r('fs', 'Timer size', 40, 200, 2)}${r('ss', 'Scramble size', 12, 36, 1)}${c('sfm', 'Monospace scramble')}${sl('dec', 'Decimals', [[2, '2'], [3, '3']])}
-<h4>Timing and sound</h4>${r('hold', 'Hold time (ms)', 0, 1000, 50)}${c('insp', '15 s inspection')}${c('snd', 'Inspection beeps')}${r('vol', 'Beep volume (%)', 0, 100, 5)}${c('auto', 'Auto rounds (new round after each ao5)')}${c('focus', 'Focus mode (hide everything while solving)')}${c('hide', 'Hide time while solving')}${c('secs', 'Show whole seconds only while solving')}
-<h4>Reactions and fun</h4>${sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']])}${sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']])}${c('brk', 'Suggest a break after several slow solves')}${r('goal', 'Daily solve goal (0 = off)', 0, 200, 5)}
-<h4>Effects</h4>${c('fx', 'Confetti and glow')}${r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1)}${c('sfx', 'Sound effects')}${c('pbm', 'Joyful music on a new PB')}${c('rdy', 'Blip when the timer turns green')}${c('vib', 'Vibration (phones)')}<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>
-<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">${view ? '' : '<button data-a="delall">Delete everything</button>'}<button data-a="rst">Reset settings</button></span></div>`);
+${g('Theme and colors', sl('theme', 'Theme', [['dark', 'Dark'], ['light', 'Light'], ['custom', 'Custom']]) + col('bg', 'Background') + col('fg', 'Text') + col('ac', 'Accent') + col('rd', 'Ready color (green)') + col('hd', 'Hold color (red)'))}
+${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden><p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>' + r('wallDim', 'Darkness over the picture (%)', 0, 90, 5) + r('cardOp', 'Opacity of the boxes on the home screen (%)', 0, 100, 5))}
+${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show side column (rounds, delete)'))}
+${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
+${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
+${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
+${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
+${g('Your data', '<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">' + (view ? '' : '<button data-a="delall">Delete everything</button>') + '<button data-a="rst">Reset settings</button></span></div>')}`);
   wallPrev();
 }
 
@@ -1253,6 +1255,7 @@ document.addEventListener('click', e => {
   if (a === 'cubes' && mode === 'idle') cubePicker();
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
   else if (a === 'today') { view = null; fresh(); }
+  else if (a === 'newscr' && mode === 'idle' && !view) fresh();
   else if (a === 'rules') {
     open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
   } else if (a === 'set') settings();

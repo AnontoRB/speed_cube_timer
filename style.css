@@ -52,6 +52,10 @@ header .menu { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
 
 /* 4. SCRAMBLE, TIMER, MESSAGE -------------------------------- */
 #scr { font-size: var(--ss); font-family: var(--sf, ui-monospace, Menlo, Consolas, monospace); text-align: center; line-height: 1.5; white-space: pre-line; min-height: 2.6em; padding: 6px; overflow-wrap: anywhere; }
+#scw { display: flex; align-items: center; gap: var(--btn-gap, 8px); }
+#scw #scr { flex: 1; min-width: 0; }
+#ns { flex: none; }
+#scr[style*="none"] + #ns, body.view #ns, body.run #ns { display: none; }
 #tz { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--th, 42vh); border-radius: calc(var(--rad, 8px) * 2); background: var(--card); margin: 6px 0; touch-action: manipulation; }
 #tm { font-size: min(var(--fs), 24vw); font-family: var(--tf, inherit); font-weight: var(--tw, 600); font-variant-numeric: tabular-nums; max-width: 100%; }
 #tm.hold { color: var(--hd, #e74c3c); }
@@ -121,8 +125,19 @@ dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right:
 .tg.h { background: var(--mut); color: var(--bg); }
 
 /* 8. SETTINGS + BUTTON ROWS ---------------------------------- */
-.set { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; }
-.set input[type=range] { width: 50%; }
+.set { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; }
+.set .lb { flex: 1 1 auto; min-width: 0; }
+.set input[type=range], .set select { flex: none; width: 50%; }
+.set input[type=range] { accent-color: var(--ac); }
+.set select { min-width: 0; }
+.set input[type=checkbox] { flex: none; width: 20px; height: 20px; padding: 0; margin: 0 2px; accent-color: var(--ac); }
+.set input[type=color] { flex: none; width: 52px; height: 32px; padding: 2px; cursor: pointer; }
+.sg { margin: 12px 0; padding: 4px 14px 10px; }
+.sg h4, .sg h4:first-of-type { margin: 10px 0 4px; }
+.sg .set + .set, .sg .lead + .set, .sg .wall + .set { border-top: 1px solid var(--line); }
+.sg .lead { margin: 2px 0 6px; font-size: .9em; }
+.sg .btns { margin-top: 10px; }
+.sg h4 + .btns { margin-top: 4px; border-top: 0; padding-top: 4px; }
 .btns { flex-wrap: wrap; justify-content: space-between; margin-top: 16px; }
 .bg { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
 
@@ -234,6 +249,8 @@ dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right:
   #st { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .set { flex-wrap: wrap; }
   .set input[type=range] { width: 100%; }
+  .set select { width: 100%; }
+  .set .lb { flex-basis: 60%; }
   .btns { justify-content: stretch; }
   .btns > button, .btns > .bg { flex: 1 1 auto; }
   .cubes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -308,7 +325,7 @@ button.danger:hover, button[data-a=del]:hover, button[data-a=delall]:hover, butt
 /* 16. WALLPAPER ---------------------------------------------
    The picture sits on <html>. Panels turn slightly see-through and blurred
    so text stays readable on any picture. */
-body.has-wall { background: transparent; --card: color-mix(in srgb, color-mix(in srgb, var(--fg) 10%, var(--bg)) 72%, transparent); }
+body.has-wall { background: transparent; --card: color-mix(in srgb, color-mix(in srgb, var(--fg) 10%, var(--bg)) var(--cop, 72%), transparent); }
 body.has-wall #tz, body.has-wall #side, body.has-wall #st div, body.has-wall #rs div, body.has-wall .dtiles div, body.has-wall .tsum div { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 body.has-wall dialog { background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .wall { display: flex; align-items: center; gap: var(--btn-gap); flex-wrap: wrap; margin: 6px 0; }
