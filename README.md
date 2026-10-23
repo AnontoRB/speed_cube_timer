@@ -7,7 +7,7 @@ Double-click `index.html`. Solves, settings and ticked algs are saved in this br
 
 ## 2. Save for everyone who visits (server)
     rustc -O server.rs -o server
-    ./server                 # open http://localhost:8000   (PORT=3000 ./server to change port)
+    ./server                 # open https://anontorb.github.io/speed_cube_timer/
 
 Everything is saved in `data.json` next to the server. Anyone who opens the site finds the same solves, settings and ticked algs. Deploy the folder + the `server` program on any host that runs programs (a VPS, Render, Fly.io, etc.). GitHub Pages cannot run it, so there it falls back to per-browser saving.
 
