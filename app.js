@@ -1164,6 +1164,60 @@ const RULES = [
   ['h', 'Scrambles are random-move, not the official random-state scrambler.']
 ];
 
+const INFO = [
+  ['Results: single, mean and averages', [
+    ['Single', 'One solve. Your best single is your fastest time ("PB" = personal best).'],
+    ['Mean', 'Add up all the times and divide by how many there are. Every solve counts, the fast ones and the slow ones. In this timer, "Mean" on the home screen is the mean of all your solves today (DNFs are left out). One bad solve pulls a mean up a lot.'],
+    ['Average (ao)', 'In cubing an "average" is NOT the same as a mean. An average removes the best and the worst times first, then takes the mean of the rest. That makes it fair: one lucky or one terrible solve does not decide the result.'],
+    ['ao5 (average of 5)', 'Take 5 solves, remove the fastest and the slowest, then take the mean of the middle 3. This is the standard official result for most events, and it is what each Round in this timer is.'],
+    ['ao12 (average of 12)', 'Last 12 solves. Remove the best 1 and the worst 1, then take the mean of the other 10. Used to see your pace over a longer stretch.'],
+    ['ao100 (average of 100)', 'Last 100 solves. Remove the best 5 and the worst 5 (5%), then take the mean of the other 90. A very steady measure of your real level.'],
+    ['mo3 (mean of 3)', 'Take 3 solves and take the plain mean of all three, nothing removed. Used officially for the slow big cubes (6x6 and 7x7). It is not calculated in this timer.'],
+    ['Current vs best', '"Current ao5" is the average of your last 5 solves right now. "Best ao5" is the best average of 5 you ever had, counting every group of 5 in a row. ao12 and ao100 work the same way. The Records window shows your best ao5, ao12 and ao100.']
+  ]],
+  ['Worked example (ao5)', [
+    ['Times', '28.20, 39.72, 39.06, 30.63, 16.92'],
+    ['Step 1', 'Remove the fastest (16.92) and the slowest (39.72). They go in brackets: (39.72) and (16.92).'],
+    ['Step 2', 'Mean of the middle three: (28.20 + 39.06 + 30.63) / 3 = 97.89 / 3 = 32.63.'],
+    ['Result', 'ao5 = 32.63. That is why the 1st to 5th solve boxes show the best in green with a + and the worst in red with a −: those two times are dropped.']
+  ]],
+  ['Penalties, DNF and inspection', [
+    ['Inspection', 'Before every solve you get 15 seconds to look at the scrambled cube (you may not touch it to turn it). The timer counts down and beeps at 8 s and 12 s.'],
+    ['+2', 'A 2 second penalty added to your time. Starting your solve between 15 and 17 seconds of inspection gives +2. A judge can also give +2 (for example if the cube is one move from solved when you stop). A +2 time is written like 12.34+.'],
+    ['DNF', '"Did Not Finish". The solve does not count as a time. You get it for starting after 17 s of inspection, stopping with the cube not solved, or a serious rule break.'],
+    ['DNF in averages', 'One DNF in an ao5 is allowed: it counts as the worst time and is dropped. Two or more DNFs make the whole ao5 a DNF. In a mean of 3, any DNF makes the result a DNF.'],
+    ['Stopping', 'The solve ends when you stop the timer. The cube must be fully solved when you stop, or it is a DNF.']
+  ]],
+  ['Scrambles and rounds', [
+    ['Scramble', 'A fixed list of moves that mixes the cube. Everyone doing the same scramble starts with the same puzzle, which makes times fair. Hold the cube the same way every time: white on top, green in front (the standard orientation), then apply the scramble.'],
+    ['Move letters', 'U = Up, D = Down, R = Right, L = Left, F = Front, B = Back face. Turn that face 90° clockwise as you look at it. A \' (prime) means counter-clockwise. A 2 means turn 180°. On big cubes a "w" means turn the outer two layers together (wide).'],
+    ['Round', 'In this timer one round is 5 solves. After the 5th solve the ao5 of the round is calculated and a new round starts. Click a round in the list on the right to open it and see its solves and scrambles. Turn Auto rounds off in Settings if you do not want this.'],
+    ['★ (star)', 'A personal best. A solve gets a star when it is faster than every earlier solve (after your first 5 solves). A round gets a star when it is your best ao5.'],
+    ['Truncating', 'Single times are cut off (truncated), not rounded: 12.349 shows as 12.34. Official results round averages to the nearest hundredth, so an official average can differ from this timer by 0.01.']
+  ]],
+  ['Getting better', [
+    ['Sub-X', 'Faster than X seconds. "Sub-20" means every solve under 20.00 s. In the Records window you see which sub-X targets you reached and how close the next one is.'],
+    ['Consistency', 'Fast cubers care more about their average than their best single. A good single can be luck; a good ao12 or ao100 shows skill. Try to lower your ao12 slowly.'],
+    ['Look-ahead', 'Plan the next piece while you solve the current one so you never stop to look. This is the biggest speed-up for most people.'],
+    ['TPS', 'Turns per second. Faster fingers help, but smooth turning with no pauses matters more than raw speed.'],
+    ['Methods', 'CFOP (cross, F2L, OLL, PLL), Roux, ZZ and others are step-by-step ways to solve. The Methods button lists steps and algorithms, and you can tick the ones you know.'],
+    ['Solves/hour', 'Shown in the side column. Practice pace: it only counts once you solved for at least 5 minutes in a day.']
+  ]],
+  ['Keys and controls', [
+    ['Start', 'Hold SPACE (or touch the timer area) until it turns green, then release. Any key or tap stops the timer.'],
+    ['After a solve', 'Backspace or Delete removes the last solve (Undo is shown). 2 toggles +2. D toggles DNF.'],
+    ['Click a solve', 'Click a 1st to 5th solve box to see its scramble and time, add +2 or DNF, or delete it.']
+  ]]
+];
+
+function rulesInfo() {
+  const sec = ([t, items]) => `<section class="dcard sg"><h4>${t}</h4>${items.map(([k, v]) => `<p style="margin:8px 0"><b>${k}</b><br>${v}</p>`).join('')}</section>`;
+  open('<h3>Rules and info</h3><p class="lead" style="margin:0">Everything you need to know for competitive cubing (WCA based). Green tag: applied automatically by this timer. Grey tag: honor system.</p>' +
+    '<h4>Timer rules</h4><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>' +
+    INFO.map(sec).join(''));
+  dl.scrollTop = 0;
+}
+
 function cubePicker() {
   const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${esc(c.n)}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
         all = allCubes(), std = ['2', '3', '4', '5', '6', '7', 'oh'], oth = ['pyra', 'skewb', 'mega'],
@@ -1293,9 +1347,8 @@ document.addEventListener('click', e => {
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
   else if (a === 'today') { view = null; fresh(); }
   else if (a === 'newscr' && mode === 'idle' && !view) fresh();
-  else if (a === 'rules') {
-    open('<h3>Rules (WCA based)</h3><p style="color:var(--mut);margin:0">Green tag: applied automatically. Grey tag: honor system.</p><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>');
-  } else if (a === 'set') settings();
+  else if (a === 'rules') rulesInfo();
+  else if (a === 'set') settings();
   else if (a === 'rec' && mode === 'idle') records();
   else if (a === 'meth') methods();
   else if (a === 'solve') openSolve(+b.dataset.i);
