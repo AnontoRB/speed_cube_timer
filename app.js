@@ -1224,7 +1224,7 @@ const INFO = [
     ['Consistency', 'Fast cubers care more about their average than their best single. A good single can be luck; a good ao12 or ao100 shows skill. Try to lower your ao12 slowly.'],
     ['Look-ahead', 'Plan the next piece while you solve the current one so you never stop to look. This is the biggest speed-up for most people.'],
     ['TPS', 'Turns per second. Faster fingers help, but smooth turning with no pauses matters more than raw speed.'],
-    ['Methods', 'CFOP (cross, F2L, OLL, PLL), Roux, ZZ and others are step-by-step ways to solve. The Methods button lists steps and algorithms, and you can tick the ones you know.'],
+    ['Methods', 'Every cube has its own methods: CFOP (cross, F2L, OLL, PLL) on the 3x3, Reduction and Yau on big cubes, Ortega and CLL on the 2x2, and more. The Methods button lists steps and algorithms, and you can tick the ones you know.'],
     ['Solves/hour', 'Shown in the side column. Practice pace: it only counts once you solved for at least 5 minutes in a day.']
   ]],
   ['Keys and controls', [

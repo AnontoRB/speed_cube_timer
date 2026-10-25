@@ -1,15 +1,15 @@
 // Cube types: scrambles + which methods each cube shows. Custom cubes (added by the user) live in S.custom.
 const CUBES = [
-  { id: '2', n: '2x2', t: '2', meth: ['lbl2', 'ort'] },
+  { id: '2', n: '2x2', t: '2', meth: ['lbl2', 'ort', 'cll'] },
   { id: '3', n: '3x3', t: '3', meth: ['cfop'] },
-  { id: '4', n: '4x4', t: '4', meth: ['red4'] },
-  { id: '5', n: '5x5', t: '5', meth: ['redn'] },
-  { id: '6', n: '6x6', t: '6', meth: ['redn'] },
-  { id: '7', n: '7x7', t: '7', meth: ['redn'] },
-  { id: 'oh', n: '3x3 OH', t: '3', meth: ['cfop'] },
-  { id: 'pyra', n: 'Pyraminx', t: 'pyra', meth: ['pyr'] },
-  { id: 'skewb', n: 'Skewb', t: 'skewb', meth: ['skb'] },
-  { id: 'mega', n: 'Megaminx', t: 'mega', meth: ['mgx'] }
+  { id: '4', n: '4x4', t: '4', meth: ['red4', 'yau', 'hoya'] },
+  { id: '5', n: '5x5', t: '5', meth: ['red5', 'yau5'] },
+  { id: '6', n: '6x6', t: '6', meth: ['red6'] },
+  { id: '7', n: '7x7', t: '7', meth: ['red7'] },
+  { id: 'oh', n: '3x3 OH', t: '3', meth: ['ohm'] },
+  { id: 'pyra', n: 'Pyraminx', t: 'pyra', meth: ['pyr', 'pyl4e', 'pytop'] },
+  { id: 'skewb', n: 'Skewb', t: 'skewb', meth: ['skb', 'ski', 'ska'] },
+  { id: 'mega', n: 'Megaminx', t: 'mega', meth: ['mgx', 'mgf2l'] }
 ];
 
 // Scramble types a custom cube can use.
@@ -56,63 +56,176 @@ function genScr(c) {
   return '';
 }
 
-// Methods for the other cubes (3x3 methods are in algs.js).
+// Methods for the other cubes (3x3 CFOP is in algs.js). Every cube has its own list (see CUBES above).
+// X(name, info, tips, algs). An alg row is ['name', 'alg', 'note'], ['#', 'Heading'] is a heading.
+// The algs were run through a cube simulator to check what they do.
 const X = (n, info, tips = [], algs = []) => ({ n, info, tips, algs });
 const MX = {
+  // ---- 2x2 ----
   lbl2: {
     n: 'Layer by layer',
     sub: {
-      st: X('Steps', 'Treat the 2x2 as a 3x3 without edges. Solve one layer, then the last layer. Hold the first layer on the bottom.', ['Solve one face first (4 corners). Match the side colors, not only the top.', 'Use R U R\' U\' to move a corner into its slot.', 'Aim for a solved first layer in under 8 moves, then drill the last layer.']),
-      ll: X('Last layer', 'Orient the 4 top corners (Sune / Anti-Sune), then permute them.', ['Sune and Anti-Sune solve most orientation cases; repeat or turn U to find the right one.', 'After orienting, solve the corner swap with the T or Y perm.'], [
+      st: X('Steps', 'Solve one layer, then the last layer. First layer on the bottom.', ['Match the side colours, not only the top.', 'R U R\' U\' puts a corner in its slot.', 'Plan the first layer in inspection.']),
+      ll: X('Last layer', 'Orient the 4 top corners, then permute them.', ['Repeat Sune or Anti-Sune until all top corners are yellow.', 'Then fix the corners with T or Y.'], [
         ['#', 'Orient'], ['Sune', "R U R' U R U2 R'"], ['Anti-Sune', "R U2 R' U' R U' R'"],
         ['#', 'Permute'], ['Adjacent swap (T)', "R U R' U' R' F R2 U' R' U' R U R' F'"], ['Diagonal swap (Y)', "F R U' R' U' R U R' F' R U R' U' R' F R F'"]
       ])
     }
   },
   ort: {
-    n: 'Ortega / CLL',
+    n: 'Ortega',
     sub: {
-      o: X('Overview', 'Faster 2x2 methods. Ortega: solve one face, orient the other, then permute both layers (PBL). CLL: solve one layer, then the last layer corners in one look (42 algs).', ['Learn the 7 OLL cases first, then PBL (5 algs).', 'Look ahead for a free first-layer solution during inspection (a 2x2 can be solved in about 11 moves).'])
+      o: X('Overview', 'Solve one face, orient the other face, then permute both layers.', ['1. Face (side colours do not matter)', '2. Orient: 7 algs', '3. Permute both layers (PBL)']),
+      f: X('1. Face', 'Solve any face. Ignore the side colours.', ['Plan it in inspection.', 'Pick the cheapest face, not always white.']),
+      oll: X('2. Orient', 'Face on the bottom. Count the yellow stickers on top, then match the case.', ['1 on top: Sune or Anti-Sune', '2 on top: U, T or L', '0 on top: Pi or H'], [
+        ['#', '1 on top'], ['Sune', "R U R' U R U2 R'", 'Yellow front-left.'], ['Anti-Sune', "R U2 R' U' R U' R'", 'Mirror of Sune.'],
+        ['#', '2 on top'], ['U', "F R U R' U' F'", 'Two adjacent. Other two yellows on the same side.'],
+        ['T', "R U R' U' R' F R F'", 'Two adjacent. Other two yellows on opposite sides.'],
+        ['L', "F R' F' R U R U' R'", 'Two diagonal. Other two yellows on adjacent sides.'],
+        ['#', '0 on top'], ['Pi', "F R U R' U' R U R' U' F'", 'Bar of two on one side, one on each neighbour. Also R U2 R2 U\' R2 U\' R2 U2 R.'],
+        ['H', "F R U R' U' R U R' U' R U R' U' F'", 'Bar of two on opposite sides.']
+      ]),
+      pbl: X('3. Permute (PBL)', 'Each layer is solved, needs an adjacent swap, or needs a diagonal swap.', ['Fix the bottom with U/D first.', 'One layer solved: use T or Y.'], [
+        ['#', 'One layer'], ['Adjacent swap (T)', "R U R' U' R' F R2 U' R' U' R U R' F'"], ['Diagonal swap (Y)', "F R U' R' U' R U R' F' R U R' U' R' F R F'"]
+      ])
     }
   },
+  cll: {
+    n: 'CLL',
+    sub: {
+      o: X('Overview', 'Solve one layer, then orient and permute all last-layer corners with one alg. 42 cases.', ['1. Layer', '2. One alg, then a U turn', 'Learn the Ortega orient algs first.'])
+    }
+  },
+
+  // ---- 4x4 ----
   red4: {
     n: 'Reduction',
     sub: {
-      c: X('Centers', 'Build the 6 centers (2x2 blocks), one color at a time. Keep solved centers on top or front while you build the next.', ['Solve opposite centers last because they are the hardest to keep.', 'Use Rw/Lw/Uw layer moves to pair pieces.']),
-      e: X('Edges', 'Pair the 12 edges (24 pieces) so the cube acts like a 3x3. Use the slot trick: put a pair in the front-right slot and tuck it in.', ['Work from one side to another so you do not break pairs.', 'Do not turn Rw while paired edges are on the right slot without protecting them.']),
-      f: X('3x3 stage', 'Solve the cube like a 3x3, then fix parity if it appears.', ['Never turn the inner layers (Rw, Uw...) during the 3x3 stage.']),
-      p: X('Parity', 'Two cases only on 4x4: OLL parity (one flipped edge) and PLL parity (two swapped edges).', ['OLL parity shows up if an edge is flipped in the last layer.', 'PLL parity shows up if two edges are swapped, or if only two edges need to swap.'], [
+      c: X('Centers', 'Build the 6 centers, one colour at a time.', ['Opposite centers last.', 'Use Rw/Lw/Uw to bring pieces in.']),
+      e: X('Edges', 'Pair the 12 edges. Put a pair in the front-right slot and tuck it in.', ['Work in one direction so you keep your pairs.', 'Protect paired edges before turning Rw.']),
+      f: X('3x3 stage', 'Solve like a 3x3, then fix parity.', ['No inner-layer turns here.']),
+      p: X('Parity', 'OLL parity: one flipped edge. PLL parity: two swapped edges.', ['It shows up in the last layer.'], [
         ['OLL parity', "Rw U2 x Rw U2 Rw U2 Rw' U2 Lw U2 Rw' U2 Rw U2 Rw' U2 Rw'"],
         ['PLL parity', "Rw2 B2 U2 Lw U2 Rw' U2 Rw U2 F2 Rw F2 Lw' B2 Rw2"]
       ])
     }
   },
-  redn: {
-    n: 'Reduction',
+  yau: {
+    n: 'Yau',
     sub: {
-      c: X('Centers', 'Build all centers (a block per color). On 6x6 and 7x7 do the inner centers one color at a time too.', ['Solve opposite colors last.', 'Use slice moves to bring pieces in, never undo solved centers.']),
-      e: X('Edges', 'Pair all edges. On 5x5 each edge has 3 pieces, on 6x6 4 pieces, on 7x7 5 pieces.', ['Use the 3-cycle trick for the middle edge of 5x5 and 7x7.', 'Pair with a free edge slot so you do not need extra algs.']),
-      f: X('3x3 stage', 'Solve like a 3x3. 5x5 and 7x7 have no parity, 6x6 has the same parities as 4x4.', ['Use the 4x4 parity algs on 6x6 only.'])
+      st: X('Steps', 'Reduction in a faster order: the cross is built early.', ['1. Two opposite centers', '2. Three cross edges', '3. Last four centers', '4. Finish the cross', '5. Pair the other 8 edges (3-2-3)', '6. 3x3 stage, cross done', 'Parity algs: see Reduction.'])
     }
   },
+  hoya: {
+    n: 'Hoya',
+    sub: {
+      st: X('Steps', 'Yau, but the cross edges come after four centers.', ['1. Four centers', '2. Cross edges', '3. Last two centers + other edges', '4. 3x3 stage', 'Parity algs: see Reduction.'])
+    }
+  },
+
+  // ---- 5x5, 6x6, 7x7 ----
+  red5: {
+    n: 'Reduction',
+    sub: {
+      c: X('Centers', 'Build the 6 centers. Each middle piece is fixed.', ['Opposite colours last.']),
+      e: X('Edges', 'Pair 12 edges: a fixed middle piece and two wings.', ['Use a free slot. 3-cycle for the last wings.']),
+      f: X('3x3 stage', 'Solve like a 3x3. No parity.')
+    }
+  },
+  yau5: {
+    n: 'Yau5',
+    sub: {
+      st: X('Steps', 'Yau on the 5x5: cross first.', ['1. Two opposite centers', '2. Three cross edges', '3. Other centers + last cross edge', '4. Pair the other edges (free slice)', '5. 3x3 stage. No parity.'])
+    }
+  },
+  red6: {
+    n: 'Reduction',
+    sub: {
+      c: X('Centers', 'Each center is 4x4. Build 2x2 blocks, one colour at a time.', ['Opposite colours last.']),
+      e: X('Edges', 'Pair 12 edges of 4 wings each.', ['Middle wings first, then outer wings.']),
+      f: X('3x3 stage + parity', 'Solve like a 3x3. Same parity cases as the 4x4: OLL and PLL.', ['The 4x4 parity algs turn 2 layers and break the 6x6 centers. Use the 6x6 versions (3 layers, 3Rw).'])
+    }
+  },
+  red7: {
+    n: 'Reduction',
+    sub: {
+      c: X('Centers', 'Each center is 5x5. Build the 6 centers, one colour at a time.', ['Opposite colours last.']),
+      e: X('Edges', 'Pair 12 edges: a fixed middle piece and 4 wings.', ['3-cycle for the middle edge.']),
+      f: X('3x3 stage', 'Solve like a 3x3. No parity.')
+    }
+  },
+
+  // ---- 3x3 one-handed ----
+  ohm: {
+    n: 'OH method',
+    sub: {
+      ov: X('Overview', 'Same steps as 3x3. Use moves that suit one hand.', ['Slow and smooth first.', 'Rotate on the table, not in the air.', 'Plan the cross in inspection.']),
+      gr: X('Grip', 'Thumb left, fingers right. Stay on R, U, F.', ['R: index or middle finger. R\': thumb.', 'U: index. U\': thumb.', 'F: ring finger. F\': thumb.', 'Avoid L, D, B: rotate, then use R or U.']),
+      al: X('Algs', 'OH-friendly algs (R, U, F, B2).', [], [
+        ['#', 'Orient'], ['Sune', "R U R' U R U2 R'"], ['Anti-Sune', "R U2 R' U' R U' R'"],
+        ['#', 'Permute'], ['Ua', "R U' R U R U R U' R' U' R2"], ['Ub', "R2 U R U R' U' R' U' R' U R'"], ['H', "R2 U2 R U2 R2 U2 R2 U2 R U2 R2"],
+        ['Aa', "R' F R' B2 R F' R' B2 R2"], ['Ab', "R B' R F2 R' B R F2 R2"], ['T', "R U R' U' R' F R2 U' R' U' R U R' F'"]
+      ])
+    }
+  },
+
+  // ---- Pyraminx ----
   pyr: {
     n: 'Beginner',
     sub: {
-      t: X('Tips and centers', 'Turn the 4 tips so each matches the center below it (lowercase u l r b moves). Do this at the start or the end.', ['Tips are free: just twist them to match.']),
-      l: X('First layer', 'Solve the 3 bottom edges (the first layer), matching them with the centers.', ['Solve all three at once if you can.']),
-      m: X('Last layer', 'Orient the last 3 edges (flip them if needed), then cycle them if they are out of place. Same ideas as the 3x3 but with only 6 edges.', ['Learn the 4 edge cases, then the 2 cycle algs.'])
+      t: X('Tips', 'Turn the 4 tips (u l r b) to match their centers. Any time.', ['Tips are free.']),
+      l: X('First layer', 'Solve the 3 bottom edges to match the centers.', ['Do all three at once if you can.']),
+      m: X('Last layer', 'Flip the last 3 edges, then cycle them.', ['4 edge cases, 2 cycle algs.'])
     }
   },
-  skb: {
-    n: 'Beginner',
+  pyl4e: {
+    n: 'V first / L4E',
     sub: {
-      s: X('Steps', 'Solve a face and its 4 corners first (with one corner twisted if needed), then orient the last layer with a repeating alg, then permute.', ['The Skewb has only 4 turning axes. Hold it with the same two corners every time.', 'Learn the Sarah\'s Intermediate method when you want to improve.'])
+      st: X('Steps', 'Solve a V (three centers, two edges), then the last four edges in one step.', ['Find a V in inspection.', 'Intuitive first, algs later.', 'Layer by layer is the beginner version.'])
     }
   },
+  pytop: {
+    n: 'Top first',
+    sub: {
+      st: X('Steps', 'Solve the three edges around one center first, then finish with a few algs.', ['Keyhole: 5 last-layer algs, four of them mirrors.', 'Later: Oka, WO, Nutella.'])
+    }
+  },
+
+  // ---- Skewb ----
+  skb: {
+    n: "Sarah's beginner",
+    sub: {
+      s: X('Steps', 'Solve a face with its 4 corners, then the last layer with the two algs below.', ['Same grip every time.', 'Hedgehammer is the inverse of sledgehammer.'], [
+        ['#', 'Algs'], ['Sledgehammer', "R' F R F'"], ['Hedgehammer', "F R' F' R"]
+      ])
+    }
+  },
+  ski: {
+    n: "Sarah's intermediate",
+    sub: {
+      s: X('Steps', 'First layer, then the last five centers, then the last corners. Plan each sledgehammer / hedgehammer.', ['First layer: about 7 to 8 moves.', 'Look for cases that one hammer nearly solves.'], [
+        ['#', 'Algs'], ['Sledgehammer', "R' F R F'"], ['Hedgehammer', "F R' F' R"]
+      ])
+    }
+  },
+  ska: {
+    n: "Sarah's advanced",
+    sub: {
+      s: X('Steps', 'First layer, then last five centers and last corners together with one alg per case.', ['Start with the skip cases.', 'Learn intermediate first.'])
+    }
+  },
+
+  // ---- Megaminx ----
   mgx: {
     n: 'Beginner',
     sub: {
-      s: X('Steps', 'Treat it like a 3x3 on 12 faces: star, first-layer corners, second layer, third layer, then the last layer (about 10 algs).', ['Solve the star around one center first.', 'Use R U R\' U\' to insert corners.', 'Megaminx is slow at first. Aim for accuracy and lookahead.'])
+      s: X('Steps', 'Like a 3x3 on 12 faces: star, first-layer corners, second layer, third layer, last layer.', ['Star first.', 'R U R\' U\' inserts corners.', 'Accuracy first.'])
+    }
+  },
+  mgf2l: {
+    n: 'F2L style',
+    sub: {
+      s: X('Steps', 'Star and corners, then build and insert pairs like 3x3 F2L. Last layers in two looks: edges, then corners.', ['Pair order: Westlund is the most common.', 'Look ahead.'])
     }
   }
 };
