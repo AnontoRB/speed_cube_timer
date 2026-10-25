@@ -427,7 +427,7 @@ html { overscroll-behavior: none; }
 .menu button { align-items: center; justify-content: center; gap: 6px; }
 
 @media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
-  header .menu { display: grid; grid-template-columns: minmax(0, 1.9fr) repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; flex: 1 1 100%; }
+  header .menu { display: grid; grid-template-columns: minmax(0, 1.9fr) repeat(5, minmax(0, 1fr)); gap: 6px; width: 100%; flex: 1 1 100%; }
   header .menu > button { display: flex; padding: 0 4px; min-width: 0; }
   .menu .tx { display: none; }
   .menu .ic { display: block; }
@@ -555,7 +555,7 @@ html { overscroll-behavior: none; }
   header .sp { display: none; }
   #logo { grid-area: logo; justify-self: start; padding: 2px 4px; font-size: 1em; }
   #ev { margin-left: 5px; padding: 1px 6px; }
-  header .menu { grid-area: menu; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: 100%; flex: none; align-self: start; justify-self: stretch; }
+  header .menu { grid-area: menu; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; width: 100%; flex: none; align-self: start; justify-self: stretch; }
   header .menu > button { min-height: var(--tap); padding: 0 2px; }
   #dt { grid-column: 1 / -1; }
   #mini { grid-area: mini; align-self: center; justify-self: end; display: flex; flex-direction: column; align-items: stretch; justify-content: center; text-align: left; width: min(100%, 168px); margin: 0; padding: 6px 10px; gap: 2px; cursor: pointer; overflow: hidden;
@@ -597,7 +597,7 @@ html { overscroll-behavior: none; }
 @media (max-width: 360px) {
   #rs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   #rs div, #rs div:nth-child(n+4), #rs div:last-child:nth-child(odd) { grid-column: auto; }
-  header .menu { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  header .menu { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 /* 23. DESKTOP / LAPTOP: ONLY THE RIGHT COLUMN SCROLLS ---------
@@ -612,4 +612,22 @@ html { overscroll-behavior: none; }
   #side { min-height: 0; overflow: hidden; }
   #side .row, #goal { flex: none; }
   #rd { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fg) 30%, transparent) transparent; padding-right: 4px; }
+}
+
+/* 24. PROGRESS GRAPH -------------------------------------------
+   Click the heading of the side column ("3x3 · N solves today") to open it. */
+#cnt { cursor: pointer; }
+#cnt::after { content: " ▸"; color: var(--mut); font-weight: 400; }
+#cnt:hover { color: var(--ac); }
+.lg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+dialog svg { display: block; margin: 6px 0; overflow: visible; }
+
+/* Progress button in the menu: phones and small tablets only. Wide screens open the graph by clicking the "N solves today" heading. */
+@media (min-width: 801px) { header .menu button[data-a="progress"] { display: none; } }
+
+/* 25. PROGRESS BUTTON: PHONES ONLY ------------------------------
+   On laptop/desktop the graph opens from the side column heading, so the menu button is hidden there. */
+header .menu > button[data-a=progress] { display: none; }
+@media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
+  header .menu > button[data-a=progress] { display: flex; }
 }

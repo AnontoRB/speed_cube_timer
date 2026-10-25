@@ -1313,6 +1313,7 @@ dl.addEventListener('click', e => {
   if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
+  else if (a === 'pg') progress(b.dataset.s);
   else if (a === 'wpick') $('#wf').click();
   else if (a === 'wrm') { WALL = ''; try { localStorage.removeItem('ct2wall'); } catch (err) {} applyTheme(); wallPrev(); }
   else if (a === 'rst') { if (confirm('Reset all settings to their defaults? Your solves are not touched.')) { S.set = defSet(); applyTheme(); save(); render(); settings(); } }
@@ -1380,6 +1381,7 @@ document.addEventListener('click', e => {
   else if (a === 'solve') openSolve(+b.dataset.i);
   else if (a === 'round') openRound(+b.dataset.n);
   else if (a === 'mini' && mode === 'idle') todayInfo();
+  else if (a === 'progress' && mode === 'idle') progress();
   else if (a === 'x' && mode === 'idle') {
     delSolve(+b.dataset.i);
   } else if (a === 'undo') {
@@ -1387,10 +1389,54 @@ document.addEventListener('click', e => {
   }
 });
 
+// Progress graph: every solve as a dot, rolling ao5 / ao12 lines and a trend line, for today or for all time.
+let chartScope = 'day';
+function progress(scope) {
+  if (scope) chartScope = scope;
+  const day = chartScope !== 'all', L = day ? D().solves : allSolves(S.cur), n = L.length, v = L.map(val), fin = v.filter(isFinite),
+        head = `<h3>Progress · ${esc(name())}</h3><div class="row tabs"><button data-a="pg" data-s="day" class="${day ? 'on' : ''}">${view ? 'That day' : 'Today'}</button><button data-a="pg" data-s="all" class="${day ? '' : 'on'}">All time</button></div>`;
+  if (fin.length < 3) { open(head + '<p class="lead">Do a few more solves and your progress graph will show up here (it needs at least 3 times).</p>'); return; }
+  const W = 600, H = 260, ml = 48, mr = 10, mt = 12, mb = 26, pw = W - ml - mr, ph = H - mt - mb,
+        srt = [...fin].sort((a, b) => a - b), mx0 = srt[0], q = srt[Math.min(srt.length - 1, Math.floor(srt.length * .95))],
+        hi = Math.max(q * 1.08, mx0 + 10), lo = Math.max(0, mx0 - (hi - mx0) * .06),
+        X = i => ml + (n > 1 ? i / (n - 1) : .5) * pw, Y = x => mt + (1 - (Math.min(x, hi) - lo) / (hi - lo)) * ph,
+        roll = k => { const pts = []; for (let i = k; i <= n; i++) { const a = aoW(v.slice(i - k, i), k); if (isFinite(a)) pts.push(X(i - 1).toFixed(1) + ',' + Y(a).toFixed(1)); } return pts.join(' '); };
+  // straight trend line through the finished solves (least squares)
+  let sx = 0, sy = 0, sxy = 0, sxx = 0, c = 0;
+  v.forEach((y, i) => { if (!isFinite(y)) return; c++; sx += i; sy += y; sxy += i * y; sxx += i * i; });
+  const den = c * sxx - sx * sx, m = den ? (c * sxy - sx * sy) / den : 0, b0 = (sy - m * sx) / c, change = m * (n - 1);
+  let g = '';
+  for (let k = 0; k <= 4; k++) {
+    const t = lo + (hi - lo) * k / 4, y = Y(t).toFixed(1);
+    g += `<line x1="${ml}" x2="${W - mr}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${ml - 6}" y="${(+y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--mut)">${fx(t)}</text>`;
+  }
+  [0, Math.round((n - 1) / 2), n - 1].filter((x, i, a) => a.indexOf(x) === i).forEach(i => { g += `<text x="${X(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--mut)">${i + 1}</text>`; });
+  const r = n > 400 ? 1.6 : n > 120 ? 2.2 : 3;
+  g += v.map((y, i) => {
+    const x = X(i).toFixed(1);
+    if (!isFinite(y)) return `<path d="M${(+x - 3).toFixed(1)} ${mt + 1}l6 6m0 -6l-6 6" stroke="#e74c3c" stroke-width="1.6" fill="none"><title>#${i + 1} DNF</title></path>`;
+    const ys = Y(y).toFixed(1), clipped = y > hi;
+    return `<circle cx="${x}" cy="${ys}" r="${L[i].pb ? r + 1.8 : r}" fill="${L[i].pb ? '#f1c40f' : clipped ? 'none' : 'var(--mut)'}" ${clipped ? 'stroke="var(--mut)"' : ''} opacity="${L[i].pb ? 1 : .7}"><title>#${i + 1} · ${fmtS(L[i])}${L[i].pb ? ' ★ PB' : ''}</title></circle>`;
+  }).join('');
+  g += `<line x1="${X(0).toFixed(1)}" y1="${Y(b0).toFixed(1)}" x2="${X(n - 1).toFixed(1)}" y2="${Y(b0 + m * (n - 1)).toFixed(1)}" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="5 4" opacity=".65"/>`;
+  if (n >= 12) g += `<polyline points="${roll(12)}" fill="none" stroke="var(--rd)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  if (n >= 5) g += `<polyline points="${roll(5)}" fill="none" stroke="var(--ac)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const k = Math.min(10, Math.floor(fin.length / 2)), fm = mn(fin.slice(0, k)), lm = mn(fin.slice(-k)), d = fm - lm,
+        tile = (l, x, sub) => `<div><small>${l}</small><b>${x}</b>${sub ? `<small>${sub}</small>` : ''}</div>`,
+        verdict = fin.length < 6 ? '' : Math.abs(d) < 10 ? `Your times are steady: your last ${k} solves average about the same as your first ${k}.`
+          : d > 0 ? `📈 You are getting faster! Your last ${k} solves average ${fx(lm)}, which is ${ds(d)}s (${(d / fm * 100).toFixed(0)}%) faster than your first ${k} (${fx(fm)}).`
+          : `Your last ${k} solves average ${fx(lm)}, ${ds(d)}s slower than your first ${k} (${fx(fm)}). That is normal: tired hands, or a rough patch. The averages tell the real story.`;
+  open(head +
+    `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Solve times over ${n} solves">${g}</svg>` +
+    `<div class="chips lg"><span><i style="background:var(--mut)"></i>each solve</span>${n >= 5 ? '<span><i style="background:var(--ac)"></i>ao5</span>' : ''}${n >= 12 ? '<span><i style="background:var(--rd)"></i>ao12</span>' : ''}<span><i style="background:var(--fg);opacity:.65"></i>trend</span><span><i style="background:#f1c40f"></i>PB ★</span></div>` +
+    `<p class="lead" style="margin:10px 0 6px">${verdict}</p>` +
+    `<div class="dtiles">${tile('Solves', n)}${tile('Best', fx(srt[0]))}${tile('Mean', fx(mn(fin)))}${tile('Current ao5', fx(aoN(v, 5)))}${tile('Trend', (change <= 0 ? '−' : '+') + ds(change) + 's', change <= 0 ? 'faster over these solves' : 'slower over these solves')}</div>`);
+}
+
 // Full "Today" window (opened from the top-right box on phones): goal, streak, week, numbers and rounds.
 function todayInfo() {
   const r = roundsHtml(D());
-  open('<h3>Today</h3><div class="dcard">' + (goalPanel() || '<p class="lead">No solves yet today.</p>') + '</div>' + (r ? '<h4>Rounds</h4><div class="rdl">' + r + '</div>' : ''));
+  open('<h3>Today</h3><button class="on" data-a="pg" data-s="day" style="width:100%;margin-bottom:6px">📈 Progress graph</button><div class="dcard">' + (goalPanel() || '<p class="lead">No solves yet today.</p>') + '</div>' + (r ? '<h4>Rounds</h4><div class="rdl">' + r + '</div>' : ''));
 }
 
 // Popup for one solve (scramble, time, +2 / DNF / delete).

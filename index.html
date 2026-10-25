@@ -16,6 +16,7 @@
     <nav class="menu" aria-label="Main menu">
       <button id="dt" data-a="cal" title="Calendar"></button>
       <button data-a="meth" title="Methods" aria-label="Methods"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg><span class="tx">Methods</span></button>
+      <button data-a="progress" title="Progress graph" aria-label="Progress graph"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="tx">Progress</span></button>
       <button data-a="rec" title="Records" aria-label="Records"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg><span class="tx">Records</span></button>
       <button data-a="rules" title="Rules and info" aria-label="Rules and info"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span class="tx">Rules and info</span></button>
       <button data-a="set" title="Settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg><span class="tx">Settings</span></button>
@@ -34,7 +35,7 @@
 </div>
 <aside id="side">
   <div class="row">
-    <b id="cnt"></b>
+    <b id="cnt" data-a="progress" role="button" title="Show my progress graph"></b>
   </div>
   <div id="goal"></div>
   <div id="rd"></div>
