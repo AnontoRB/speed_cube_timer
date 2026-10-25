@@ -1,97 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Meta Information & Viewport Settings -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14161a">
   <meta name="color-scheme" content="dark">
   <title>CubeTimer</title>
-
-  <!-- Main Stylesheet Link -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-  <!-- ========================================== -->
-  <!-- HEADER SECTION (Logo, Cube Picker & Menu)   -->
-  <!-- ========================================== -->
   <header>
-    <!-- Logo and Current Cube Indicator -->
     <button id="logo" data-a="cubes" title="Choose a cube"><b>CubeTimer</b><span id="ev"></span> &#9662;</button>
-    
-    <!-- Spacer -->
     <span class="sp"></span>
-    
-    <!-- Top Navigation Menu -->
+    <div id="mini" data-a="mini" role="button" aria-label="Today: tap for details"></div>
     <nav class="menu" aria-label="Main menu">
       <button id="dt" data-a="cal" title="Calendar"></button>
-      <button data-a="meth">Methods</button>
-      <button data-a="rec">Records</button>
-      <button data-a="rules">Rules and info</button>
-      <button data-a="set">Settings</button>
+      <button data-a="meth" title="Methods" aria-label="Methods"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg><span class="tx">Methods</span></button>
+      <button data-a="rec" title="Records" aria-label="Records"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg><span class="tx">Records</span></button>
+      <button data-a="rules" title="Rules and info" aria-label="Rules and info"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span class="tx">Rules and info</span></button>
+      <button data-a="set" title="Settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg><span class="tx">Settings</span></button>
     </nav>
   </header>
-
-  <!-- ========================================== -->
-  <!-- MAIN APP WRAPPER                           -->
-  <!-- ========================================== -->
   <div id="wrap">
-
-    <!-- Left / Main Column Container -->
-    <div id="mn">
-      
-      <!-- Read-Only View Banner (When viewing past calendar days) -->
-      <div id="vb" hidden></div>
-      
-      <!-- Scramble Bar & New Scramble Button -->
-      <div id="scw">
-        <div id="scr"></div>
-        <button id="ns" data-a="newscr" title="New scramble" aria-label="New scramble">&#8635;</button>
-      </div>
-      
-      <!-- Timer Display Zone (Main interaction area for solving) -->
-      <main id="tz">
-        <div id="tm">0.00</div>
-        <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
-      </main>
-      
-      <!-- Recent Solves (Last 5 Solves) Section -->
-      <section id="rs"></section>
-      
-      <!-- Statistics Section (Best, Mean, Current ao5, Best ao5, Rounds info) -->
-      <section id="st"></section>
-      
-    </div>
-
-    <!-- Right / Side Column Container (Session summary & rounds history) -->
-    <aside id="side">
-      <!-- Session Name / Solve Count Header -->
-      <div class="row">
-        <b id="cnt"></b>
-      </div>
-      
-      <!-- Daily Goal Progress & Weekly Chart -->
-      <div id="goal"></div>
-      
-      <!-- Completed Rounds List History -->
-      <div id="rd"></div>
-    </aside>
-
+<div id="mn">
+  <div id="vb" hidden></div>
+  <div id="scw"><div id="scr"></div><button id="ns" data-a="newscr" title="New scramble" aria-label="New scramble">&#8635;</button></div>
+  <main id="tz">
+    <div id="tm">0.00</div>
+    <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
+  </main>
+  <section id="rs"></section>
+  <section id="st"></section>
+</div>
+<aside id="side">
+  <div class="row">
+    <b id="cnt"></b>
   </div>
-
-  <!-- ========================================== -->
-  <!-- MODAL DIALOG CONTAINER                     -->
-  <!-- ========================================== -->
-  <!-- Used dynamically by JavaScript for settings, calendar, records, methods, and rules popups -->
+  <div id="goal"></div>
+  <div id="rd"></div>
+</aside>
+</div>
   <dialog id="dl"></dialog>
-
-  <!-- ========================================== -->
-  <!-- EXTERNAL JAVASCRIPT SCRIPTS                -->
-  <!-- ========================================== -->
   <script src="algs.js" defer></script>
   <script src="cubes.js" defer></script>
   <script src="app.js" defer></script>
-
 </body>
 </html>

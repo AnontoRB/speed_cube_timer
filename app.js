@@ -241,6 +241,12 @@ function rstrip(d) {
   }).join('');
 }
 
+// The list of finished rounds (side column on desktop, Today popup on phones).
+function roundsHtml(d) {
+  const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
+  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).join('');
+}
+
 function render() {
   $('#ev').textContent = name();
   const d = D(), [best, mean, cur, bao] = stats(arr(d.solves.map(val))),
@@ -248,6 +254,7 @@ function render() {
   rstrip(d);
   $('#st').innerHTML = bx('Best', best) + bx('Mean', mean) + bx('Current ao5', cur) + bx('Best ao5', bao) + `<div><small>Round</small><b>${S.set.auto ? d.round + ' · ' + d.solves.filter(x => x.r === d.round).length + '/5' : 'off'}</b></div>`;
   $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves today';
+  $('#mini').innerHTML = miniPanel(d);
   $('#dt').textContent = (view ? new Date(view + 'T00:00:00') : new Date()).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   $('#dt').classList.toggle('on', !!view);
   $('#goal').innerHTML = goalPanel();
@@ -260,7 +267,7 @@ function render() {
     $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
   }
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  $('#rd').innerHTML = [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).join('');
+  $('#rd').innerHTML = roundsHtml(d);
 }
 
 // Rebuild finished-round records from the solves, so deleting/restoring a time keeps them correct.
@@ -919,6 +926,36 @@ const streak = () => {
   return n;
 };
 
+// Small summary in the top right corner on phones and tablets: solves today + daily goal bar.
+function miniPanel(d) {
+  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), gc = sum(dayData(key)), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
+  return `<b>${d.solves.length} solves${view ? '' : ' today'}</b>` +
+    (gl ? `<div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} · ${pc}%${gc >= gl ? ' ✓' : ''}</small>` : '') +
+    `<div class="mx">${weekHtml(key)}${tilesHtml()}</div>`;
+}
+
+// Last 7 days as small bars (goal reached = green).
+function weekHtml(key) {
+  const gl = S.set.goal, cnt = k => sum(dayData(k)), days = [], b0 = new Date(key + 'T00:00:00');
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(b0);
+    d.setDate(d.getDate() - i);
+    const k = dkey(d);
+    days.push({ k, c: cnt(k), w: 'SMTWTFS'[d.getDay()] });
+  }
+  if (!days.some(y => y.c)) return '';
+  const mx = Math.max(gl || 0, ...days.map(y => y.c), 1);
+  return `<div class="wk">${days.map(y => `<div class="${gl && y.c >= gl ? 'ok' : ''}${y.k === key ? ' td' : ''}" title="${y.k}: ${plural(y.c, 'solve')}"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
+}
+
+// PBs, DNFs, solving time and solves per hour for the shown day.
+function tilesHtml() {
+  const L = D().solves;
+  if (!L.length) return '';
+  const tt = L.reduce((a, y) => a + (y.t || 0), 0), span = L[L.length - 1].d - L[0].d, pace = span >= 3e5 ? Math.round((L.length - 1) / (span / 36e5)) : 0;
+  return `<div class="tsum"><div><small>PBs ★</small><b>${L.filter(y => y.pb).length}</b></div><div><small>DNFs</small><b>${L.filter(y => y.p === 'D').length}</b></div><div><small>Solving time</small><b>${dur(tt)}</b></div><div><small>Solves/hour</small><b>${pace || '–'}</b></div></div>`;
+}
+
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
 function goalPanel() {
   const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => sum(dayData(k)),
@@ -926,22 +963,7 @@ function goalPanel() {
   let h = '';
   if (gl) h += `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
   if (sk > 1) h += `<div class="sk">🔥 ${sk}-day streak${bestSk > sk ? ` <small>(best ${bestSk})</small>` : ''}</div>`;
-  const days = [], b0 = new Date(key + 'T00:00:00');
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(b0);
-    d.setDate(d.getDate() - i);
-    const k = dkey(d);
-    days.push({ k, c: cnt(k), w: 'SMTWTFS'[d.getDay()] });
-  }
-  if (days.some(y => y.c)) {
-    const mx = Math.max(gl || 0, ...days.map(y => y.c), 1);
-    h += `<div class="wk">${days.map(y => `<div class="${gl && y.c >= gl ? 'ok' : ''}${y.k === key ? ' td' : ''}" title="${y.k}: ${plural(y.c, 'solve')}"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
-  }
-  const L = D().solves;
-  if (L.length) {
-    const tt = L.reduce((a, y) => a + (y.t || 0), 0), span = L[L.length - 1].d - L[0].d, pace = span >= 3e5 ? Math.round((L.length - 1) / (span / 36e5)) : 0;
-    h += `<div class="tsum"><div><small>PBs ★</small><b>${L.filter(y => y.pb).length}</b></div><div><small>DNFs</small><b>${L.filter(y => y.p === 'D').length}</b></div><div><small>Solving time</small><b>${dur(tt)}</b></div><div><small>Solves/hour</small><b>${pace || '–'}</b></div></div>`;
-  }
+  h += weekHtml(key) + tilesHtml();
   return h;
 }
 
@@ -1282,6 +1304,8 @@ let sel = -1;
 
 dl.addEventListener('click', e => {
   if (e.target === dl) { dl.close(); return; } // click outside the window (on the dark backdrop)
+  const rr = e.target.closest('[data-a=round]');
+  if (rr) { openRound(+rr.dataset.n); return; }
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
@@ -1355,12 +1379,19 @@ document.addEventListener('click', e => {
   else if (a === 'meth') methods();
   else if (a === 'solve') openSolve(+b.dataset.i);
   else if (a === 'round') openRound(+b.dataset.n);
+  else if (a === 'mini' && mode === 'idle') todayInfo();
   else if (a === 'x' && mode === 'idle') {
     delSolve(+b.dataset.i);
   } else if (a === 'undo') {
     undoSolve();
   }
 });
+
+// Full "Today" window (opened from the top-right box on phones): goal, streak, week, numbers and rounds.
+function todayInfo() {
+  const r = roundsHtml(D());
+  open('<h3>Today</h3><div class="dcard">' + (goalPanel() || '<p class="lead">No solves yet today.</p>') + '</div>' + (r ? '<h4>Rounds</h4><div class="rdl">' + r + '</div>' : ''));
+}
 
 // Popup for one solve (scramble, time, +2 / DNF / delete).
 function openSolve(i) {
@@ -1484,4 +1515,4 @@ async function pull() {
 
 pull();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); } });
-setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);
+setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);

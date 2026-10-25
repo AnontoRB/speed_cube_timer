@@ -419,3 +419,183 @@ html { overscroll-behavior: none; }
   .set input[type=range] { height: 32px; }
   body { overscroll-behavior-y: contain; }
 }
+
+/* 18. MENU ICONS ----------------------------------------------
+   Desktop and tablet show the names. On phones (portrait, or sideways)
+   the names are replaced by icons so all five buttons fit in one row. */
+.menu .ic { display: none; width: 22px; height: 22px; flex: none; }
+.menu button { align-items: center; justify-content: center; gap: 6px; }
+
+@media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
+  header .menu { display: grid; grid-template-columns: minmax(0, 1.9fr) repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; flex: 1 1 100%; }
+  header .menu > button { display: flex; padding: 0 4px; min-width: 0; }
+  .menu .tx { display: none; }
+  .menu .ic { display: block; }
+  /* the date button keeps its text (it shows which day you look at) and gets a calendar icon */
+  #dt { font-size: .85em; overflow: hidden; text-overflow: ellipsis; }
+  #dt::before { content: ""; flex: none; width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; display: inline-block; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='16' rx='2'/%3E%3Cpath d='M4 10h16M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='16' rx='2'/%3E%3Cpath d='M4 10h16M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  header .menu { flex: 1; width: auto; }
+}
+
+/* 19. PHONE GRID ALIGNMENT ------------------------------------
+   No half-empty rows: the last box of a row grows to fill the space,
+   so the left and right edges line up with the boxes above. */
+@media (max-width: 600px) {
+  /* 5 solves: 3 on the first row, 2 (wider) on the second */
+  #rs { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #rs div { grid-column: span 2; }
+  #rs div:nth-child(n+4) { grid-column: span 3; }
+  /* stats: 2 columns, a lone last box fills the whole row */
+  #st { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #st div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 360px) {
+  #rs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #rs div, #rs div:nth-child(n+4) { grid-column: auto; }
+  #rs div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* 20. TOP-RIGHT SUMMARY (phones and tablets) -------------------
+   Shows "N solves today" and the daily goal bar in the top right corner.
+   The big side column is below the timer on these screens, so its
+   "solves today" line is hidden (the goal details and week stay there). */
+#mini { display: none; }
+@media (max-width: 800px), (max-width: 1100px) and (orientation: portrait) {
+  #mini { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; width: clamp(120px, 42%, 240px); margin-left: auto; font-size: .85em; line-height: 1.25; text-align: right; }
+  #mini b { white-space: nowrap; }
+  #mini .gbar { width: 100%; height: 6px; margin: 2px 0; }
+  #mini small { color: var(--mut); white-space: nowrap; }
+  #side .row { display: none; }
+}
+
+/* 21. MOBILE CLEAN-UP: sections, matching boxes, dialogs ---------
+   Phones and tablets in portrait. The page is split into labelled groups:
+   Scramble > Timer > Last 5 solves > Stats > Today (goal, week) > Rounds. */
+@media (max-width: 800px), (max-width: 1100px) and (orientation: portrait) {
+  /* group labels */
+  #rs::before, #st::before, #goal::before, #rd::before {
+    grid-column: 1 / -1; display: block; padding: 0 2px 2px;
+    font-size: .72em; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--mut);
+  }
+  #rs::before { content: "Last 5 solves"; }
+  #st::before { content: "Stats"; }
+  #goal::before { content: "Today"; margin-bottom: 4px; }
+  #rd::before { content: "Rounds"; margin-bottom: 4px; }
+
+  /* scramble sits in its own box, away from the menu */
+  #scw { background: var(--card); border-radius: calc(var(--rad, 8px) * 1.5); padding: 4px 6px 4px 10px; margin: 8px 0 4px; }
+  #scw #scr { padding: 4px; }
+
+  /* every small box has the same padding, so the text lines up */
+  #rs, #st { gap: 8px; margin: 14px 0 6px; }
+  #rs div, #st div { padding: 10px 12px; min-height: 3.6em; }
+
+  /* today + rounds become two boxes with the same look */
+  #goal, #rd { background: var(--card); border-radius: calc(var(--rad, 8px) * 1.5); padding: 12px 14px; margin: 14px 0 6px; }
+  #rd:empty { display: none; }
+  #goal .tsum div, #goal .gbar { background: color-mix(in srgb, var(--fg) 8%, var(--card)); }
+  #goal .wk { margin: 12px 0 4px; }
+  #rd div:first-of-type { border-top: 0; }
+  #rd div[data-a=round] { padding: 11px 0; }   /* easy to tap */
+  #wrap { padding-bottom: 12px; }
+}
+
+/* phones only */
+@media (max-width: 600px) {
+  /* stat tiles in the Records window: 2 columns, a lone last tile fills the row */
+  .dtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dtiles div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* title and "0 / 41 known" no longer touch */
+  dialog h3 { flex-wrap: wrap; gap: 2px 8px; }
+
+  /* method tabs: one swipeable row instead of three wrapped rows */
+  .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 6px 0; padding-bottom: 2px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; padding: 4px 14px; }
+
+  /* algorithm rows: tick box, name, then the moves under them, all left aligned */
+  .alg { justify-content: flex-start; gap: 4px 12px; }
+  .alg b { flex: 1; min-width: 0; }
+  .alg code { flex-basis: 100%; padding-left: 36px; }
+
+  /* big popup buttons stay on one tidy row */
+  .btns { gap: 8px; }
+}
+
+/* 22. PHONE: TODAY BOX TOP RIGHT + ONE-PAGE HOME SCREEN -----------
+   Phone portrait only. The Today summary (goal, week, numbers) sits in the top right;
+   tap it for the full window. Everything else is compacted so the home screen
+   fits the screen without scrolling. */
+#mini .mx { display: none; }
+.rdl div { padding: 8px 0; border-top: 1px solid var(--line); color: var(--mut); }
+.rdl div:first-child { border-top: 0; }
+.rdl b { color: var(--fg); }
+.rdl .g { color: var(--rd); }
+.rdl .r { color: #e74c3c; }
+.rdl .pick { cursor: pointer; }
+
+@media (max-width: 600px) {
+  :root { --tap: 42px; }
+  html { overflow: hidden; }
+  body {
+    height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / var(--zoom));
+    min-height: 0; overflow: hidden; padding-top: 6px; padding-bottom: 6px;
+  }
+  #wrap { flex: 1; min-height: 0; padding-bottom: 0; display: flex; flex-direction: column; }
+  #mn { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #side, #goal, #rd { display: none; }
+
+  /* header: logo + date + icons on the left, Today box on the right */
+  header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 47%); grid-template-areas: "logo logo" "menu mini"; grid-template-rows: auto auto; column-gap: 8px; row-gap: 4px; align-items: start; }
+  header .sp { display: none; }
+  #logo { grid-area: logo; justify-self: start; padding: 2px 4px; font-size: 1em; }
+  #ev { margin-left: 5px; padding: 1px 6px; }
+  header .menu { grid-area: menu; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: 100%; flex: none; align-self: start; }
+  header .menu > button { min-height: var(--tap); padding: 0 2px; }
+  #dt { grid-column: 1 / -1; }
+  #mini { grid-area: mini; align-self: stretch; display: flex; flex-direction: column; align-items: stretch; justify-content: center; text-align: left; width: auto; margin: 0; padding: 6px 9px; gap: 1px; cursor: pointer; overflow: hidden;
+          background: var(--card); border-radius: calc(var(--rad, 8px) * 1.5); font-size: .8em; }
+  #mini:active { transform: scale(.98); }
+  #mini .mx { display: block; }
+  #mini .wk { margin: 3px 0 0; gap: 3px; }
+  #mini .wk .bar { height: 16px; }
+  #mini .wk small { font-size: .62em; line-height: 1; }
+  #mini .tsum { display: none; }   /* the four numbers are in the full window (tap the box) */
+  #mini .gbar { background: color-mix(in srgb, var(--fg) 8%, var(--card)); }
+
+  /* scramble: slim, scrolls inside itself when very long (4x4, 5x5) */
+  #scw { margin: 6px 0 2px; padding: 2px 4px 2px 8px; }
+  #scr { min-height: 0; max-height: 4.6em; overflow-y: auto; font-size: clamp(11px, 3.7vw, calc(var(--ss) * var(--dv))); line-height: 1.4; padding: 2px; }
+  #ns { min-height: 36px; min-width: 36px; padding: 0; }
+
+  /* timer takes all the space that is left */
+  #tz { flex: 1; min-height: 0; margin: 4px 0; }
+  #tm { font-size: min(var(--fs), 26vw, 17dvh); }
+  #msg { min-height: 0; max-height: 7.5em; overflow-y: auto; font-size: .8em; line-height: 1.35; flex: none; }
+
+  /* last 5 solves in one row, stats in two rows */
+  #rs::before, #st::before { display: none; }
+  #rs, #st { margin: 0 0 6px; gap: 5px; }
+  #rs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  #rs div, #rs div:nth-child(n+4), #rs div:last-child:nth-child(odd) { grid-column: auto; }
+  #rs div { padding: 5px 3px; min-height: 0; text-align: center; }
+  #rs small { font-size: .62em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #rs b { font-size: .9em; white-space: nowrap; }
+  #st { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #st div { grid-column: span 2; padding: 5px 8px; min-height: 0; }
+  #st div:nth-child(n+4), #st div:last-child:nth-child(odd) { grid-column: span 3; }
+  #st small { font-size: .68em; }
+  #st b { font-size: 1em; }
+}
+
+/* very small phones keep the 5-in-a-row layout */
+@media (max-width: 360px) {
+  #rs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  #rs div, #rs div:nth-child(n+4), #rs div:last-child:nth-child(odd) { grid-column: auto; }
+  header .menu { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
