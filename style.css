@@ -599,3 +599,17 @@ html { overscroll-behavior: none; }
   #rs div, #rs div:nth-child(n+4), #rs div:last-child:nth-child(odd) { grid-column: auto; }
   header .menu { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* 23. DESKTOP / LAPTOP: ONLY THE RIGHT COLUMN SCROLLS ---------
+   The page itself never scrolls. The timer side stays in place and the
+   side column (goal, week, rounds) scrolls on its own when there are many rounds. */
+@media (min-width: 801px) and (min-height: 521px) {
+  html { overflow: hidden; }
+  body { height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / var(--zoom)); min-height: 0; overflow: hidden; }
+  #wrap { min-height: 0; }
+  #mn { min-height: 0; }
+  #tz { min-height: 0; }
+  #side { min-height: 0; overflow: hidden; }
+  #side .row, #goal { flex: none; }
+  #rd { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fg) 30%, transparent) transparent; padding-right: 4px; }
+}
