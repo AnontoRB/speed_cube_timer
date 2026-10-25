@@ -551,17 +551,17 @@ html { overscroll-behavior: none; }
   #side, #goal, #rd { display: none; }
 
   /* header: logo + date + icons on the left, Today box on the right */
-  header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 47%); grid-template-areas: "logo logo" "menu mini"; grid-template-rows: auto auto; column-gap: 8px; row-gap: 4px; align-items: start; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 47%); grid-template-areas: "logo mini" "menu menu"; grid-template-rows: auto auto; column-gap: 8px; row-gap: 5px; align-items: center; }
   header .sp { display: none; }
   #logo { grid-area: logo; justify-self: start; padding: 2px 4px; font-size: 1em; }
   #ev { margin-left: 5px; padding: 1px 6px; }
-  header .menu { grid-area: menu; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: 100%; flex: none; align-self: start; }
+  header .menu { grid-area: menu; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: 100%; flex: none; align-self: start; justify-self: stretch; }
   header .menu > button { min-height: var(--tap); padding: 0 2px; }
   #dt { grid-column: 1 / -1; }
-  #mini { grid-area: mini; align-self: stretch; display: flex; flex-direction: column; align-items: stretch; justify-content: center; text-align: left; width: auto; margin: 0; padding: 6px 9px; gap: 1px; cursor: pointer; overflow: hidden;
+  #mini { grid-area: mini; align-self: center; justify-self: end; display: flex; flex-direction: column; align-items: stretch; justify-content: center; text-align: left; width: min(100%, 168px); margin: 0; padding: 6px 10px; gap: 2px; cursor: pointer; overflow: hidden;
           background: var(--card); border-radius: calc(var(--rad, 8px) * 1.5); font-size: .8em; }
   #mini:active { transform: scale(.98); }
-  #mini .mx { display: block; }
+  #mini .mx { display: none; }   /* week bars and the four numbers are in the full window (tap the box) */
   #mini .wk { margin: 3px 0 0; gap: 3px; }
   #mini .wk .bar { height: 16px; }
   #mini .wk small { font-size: .62em; line-height: 1; }
