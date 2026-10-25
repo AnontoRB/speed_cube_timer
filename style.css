@@ -4,6 +4,7 @@
    6. Side column  7. Dialogs  8. Settings  9. Methods
    10. Cubes  11. Calendar  12. Messages  13. Effects
    14. Responsive (desktop > tablet > phone > landscape > touch)
+   17. Device layouts (phone / tablet / laptop / big screens)
    ========================================================== */
 
 /* 1. VARIABLES ---------------------------------------------- */
@@ -330,3 +331,91 @@ body.has-wall #tz, body.has-wall #side, body.has-wall #st div, body.has-wall #rs
 body.has-wall dialog { background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .wall { display: flex; align-items: center; gap: var(--btn-gap); flex-wrap: wrap; margin: 6px 0; }
 .wp { width: 96px; height: 56px; border-radius: var(--rad, 8px); background: var(--card) center / cover no-repeat; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--mut); font-size: .75em; }
+
+/* 17. DEVICE LAYOUTS -----------------------------------------
+   Every size below is driven by three variables, so each device gets its own
+   feel without repeating rules:
+     --base  text size (buttons, labels and spacing use em, so they scale with it)
+     --tap   minimum button height (finger or mouse)
+     --dv    multiplier for the timer and the scramble text
+   Order: default (laptop) > big screens > tablet landscape > tablet portrait
+          > phone portrait > phone landscape > touch screens. */
+:root { --base: 15px; --dv: 1; }
+html, body { font-size: var(--base); }
+#tm { font-size: min(calc(var(--fs) * var(--dv)), 24vw); }
+#scr { font-size: calc(var(--ss) * var(--dv)); }
+html { overscroll-behavior: none; }
+
+/* big monitors and TVs: scale the whole page up */
+@media (min-width: 2200px) { :root { --z: 1.4; } }
+@media (min-width: 3000px) { :root { --z: 1.9; } }
+
+/* tablet in landscape and small laptops: timer + a slimmer side column */
+@media (min-width: 801px) and (max-width: 1299px) and (min-height: 521px) {
+  :root { --base: 16px; --tap: 42px; --dv: 1.1; }
+  #side { width: clamp(210px, 24%, 280px); }
+  #tz { min-height: var(--th, 46vh); }
+  #st { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+}
+
+/* tablet in portrait (and any narrow window up to 1100px): one column, big timer, 5 solves in a row */
+@media (min-width: 601px) and (max-width: 1100px) and (orientation: portrait) {
+  :root { --base: 17px; --tap: 46px; --dv: 1.25; }
+  body { padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  #wrap { display: flex; flex-direction: column; }
+  #side { display: contents; }
+  #mn { display: block; }
+  #side .row { margin-top: 6px; }
+  header .menu { flex: 1 1 100%; }
+  header .menu > button { flex: 1 1 auto; padding: 10px 14px; }
+  #tz { min-height: min(var(--th, 42vh), 44dvh); }
+  #rs { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+  #rs div { padding: 12px 10px; }
+  #st { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  #st div { padding: 12px 14px; }
+  #rd div { padding: 10px 0; }
+  dialog { max-width: min(680px, calc(92vw / var(--zoom))); }
+  .cubes { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+
+/* phone in portrait: big finger-sized buttons, a tall timer, solves in 3 columns */
+@media (max-width: 600px) {
+  :root { --base: 15px; --tap: 48px; --dv: 1; }
+  #logo { padding: 8px; }
+  header .menu > button { min-height: var(--tap); }
+  #scr { font-size: clamp(13px, 4.2vw, calc(var(--ss) * var(--dv))); }
+  #tz { min-height: min(var(--th, 42vh), 46dvh); }
+  #tm { font-size: min(var(--fs), 26vw); }
+  #ns { min-width: var(--tap); }
+  #rs div { padding: 10px 8px; }
+  #st div { padding: 10px 12px; }
+  #rd div { padding: 10px 0; }
+  .seg button { min-width: 0; }
+  .cal button { min-height: 3em; }
+}
+
+/* phone turned sideways: low and wide, so keep everything compact and give the timer the height */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root { --base: 14px; --tap: 40px; --dv: 1; }
+  header { gap: 6px; }
+  #logo { padding: 2px 6px; }
+  header .menu > button { padding: 4px 10px; min-height: 34px; }
+  #side { width: clamp(150px, 24%, 230px); padding: 8px; font-size: .9em; }
+  #tz { min-height: 46vh; }
+  #tm { font-size: min(var(--fs), 30vh); }
+  #rs div, #st div { padding: 5px 6px; }
+  #st { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  dialog { max-height: calc(98dvh / var(--zoom)); max-width: min(560px, calc(96vw / var(--zoom))); }
+}
+
+/* touch screens (phones and tablets): no sticky hover, no iOS zoom on inputs, no rubber-band scrolling */
+@media (hover: none) {
+  button:hover:not(.on):not(.danger) { border-color: color-mix(in srgb, var(--fg) 20%, var(--bg)); }
+  #rs .pick:hover { outline: 0; }
+}
+@media (pointer: coarse) {
+  dialog input, dialog textarea, select { font-size: 16px; }
+  .set input[type=checkbox] { width: 26px; height: 26px; }
+  .set input[type=range] { height: 32px; }
+  body { overscroll-behavior-y: contain; }
+}
