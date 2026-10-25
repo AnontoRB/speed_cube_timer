@@ -1,256 +1,378 @@
-// Algorithm data for the CFOP and Beginner panels.
-const L = (p, a) => a.map((s, i) => [p + ' ' + (i + 1), s]);
-const N = (p, a) => a.map(s => { const i = s.indexOf(' '); return [p + s.slice(0, i), s.slice(i + 1)]; });
-const H = t => ['#', t];
+// CFOP guide for the Methods window.
+// A row is ['name', 'alg', 'note', 'picture'] (note and picture are optional), H('heading') or T('text').
+// Pictures: 'o' + 21 digits for OLL (9 top stickers, then 12 around the top; 1 = yellow, 0 = other, 2 = any),
+//           'p' + 12 letters for PLL (the colour of the 12 side stickers; F R B L = that face's colour).
+// Every alg, note and picture here was generated and checked with a cube simulator.
+const M = (() => {
+  const H = t => ['#', t], T = t => ['t', t];
 
-const BEG = {
-  info: 'Notation: R/L/U/D/F/B = right/left/up/down/front/back face, clockwise. A prime (\') = counter-clockwise, 2 = half turn. Hold the cube the same way for every step.',
-  steps: [
-    ['1. White cross (daisy)', 'Get the 4 white edges around the yellow center (the daisy). Turn U until an edge\'s side color matches its center, then turn that face 180° (F2, R2, B2 or L2) to bring it down. Repeat for all four.', ''],
-    ['2. White corners', 'Put a white corner above the slot where it belongs (it sits between the two matching centers), on the front-right of the top layer. Repeat the alg until the corner is home, with white facing down. It takes 1 to 5 repeats.', "R' D' R D"],
-    ['3. Middle layer edges', 'Find a top edge with no yellow. Turn U until its front color matches the front center. If it must go right use the first alg, if left use the second.', "U R U' R' U' F' U F  (right)\nU' L' U L U F U' F'  (left)"],
-    ['4. Yellow cross', 'Look at the yellow edges on top: dot, L shape or line. For the L shape hold it at back-left, for the line hold it horizontal. Do the alg once for each step (dot → L → line → cross).', "F R U R' U' F'"],
-    ['5. Match yellow edges', 'Turn U until at least two edges match their side centers. If two neighbours match hold them at back and right. If two opposite match hold one at the back. Do the alg, turn U, repeat until all four match.', "R U R' U R U2 R' U"],
-    ['6. Place yellow corners', 'Find a corner that is already in its correct spot (ignore its twist). Hold it at front-right and do the alg. Repeat until all four corners are in the right place. If none is correct, do the alg once anywhere.', "U R U' L' U R' U' L"],
-    ['7. Twist yellow corners', 'Hold an unsolved corner at front-right, yellow not up. Repeat the alg until yellow faces up. Then turn only the U face to bring the next unsolved corner to front-right. Do NOT rotate the whole cube. The cube looks scrambled mid-way. It fixes itself at the end.', "R' D' R D"]
-  ]
-};
-
-const CFOP = {
-  cross: {
-    info: 'Solve the 4 white edges on the bottom, each matched to its center. Done by planning, not by algs.',
+  const ov = {
+    n: 'Overview',
+    info: 'CFOP (also called the Fridrich method) is the method most fast solvers use. You solve the cube in 4 steps: <b>C</b>ross, <b>F</b>2L (First 2 Layers), <b>O</b>LL (Orient the Last Layer) and <b>P</b>LL (Permute the Last Layer). Cross and F2L are done by looking and thinking. OLL and PLL use algorithms (fixed move sequences).',
     tips: [
-      'Plan the whole cross during the 15 s inspection, then solve with your eyes on the F2L pairs ahead.',
-      'Aim for 8 moves or fewer. Look for edges that are already close to their spot.',
-      'Build the cross on the bottom so you can see the F2L pieces without rotating.',
-      'Later learn colour neutrality: pick the easiest colour to cross from.',
-      'Fast inserts: a white edge on top above its slot is F2 (once matched). A white edge in the middle layer is F or F\' to lift it.'
+      'You can solve the whole cube with CFOP after learning only 16 algs: 10 for 2-look OLL and 6 for 2-look PLL. Cross and F2L need no memorising.',
+      'Every alg in the OLL and PLL tabs has a tick box. Tick the ones you know and the counter at the top shows your progress.',
+      'Learn one step at a time. Move on when the step feels smooth, even if it is slow.',
+      'Smooth turning with no pauses is faster than fast turning with many stops.'
     ],
-    algs: []
-  },
-  f2l: {
-    info: 'First 2 Layers: pair each corner with its edge, then insert both together into the slot. 4 slots, ~8 moves each at most.',
+    algs: [
+      H(`The 4 steps`),
+      T(`<b>1. Cross</b> (about 6 to 8 moves): put the 4 white edges around the white centre on the bottom, each one matching its side centre. No algs. You plan it in the 15 seconds of inspection.`),
+      T(`<b>2. F2L</b> (about 25 to 35 moves): pair each white corner with its edge and insert the 4 pairs. When it is done, the bottom two layers are solved. There are 41 cases, but most can be worked out by looking.`),
+      T(`<b>3. OLL</b> (about 7 to 10 moves): turn the pieces of the last layer so the whole top face is yellow. 2-look uses 10 algs, full OLL uses 57.`),
+      T(`<b>4. PLL</b> (about 9 to 14 moves): move the last layer pieces into their places. 2-look uses 6 algs, full PLL uses 21. A last U turn (AUF) finishes the cube.`),
+      H(`How many moves is a solve?`),
+      T(`Fast solvers use about 50 to 60 moves in total. New CFOP solvers often use 70 to 100, and that is normal. The number drops as your F2L improves.`),
+      T(`A rough budget for a 55-move solve: cross 7, F2L 28, OLL 10, PLL 10.`),
+      H(`Learning roadmap`),
+      T(`<b>Stage 1: first CFOP solves.</b> White cross on the bottom. Make pairs by feel and insert them. Learn 2-look OLL (10 algs) and 2-look PLL (6 algs). Goal: finish a full solve with CFOP, about 1 minute or slower.`),
+      T(`<b>Stage 2: smooth F2L.</b> Learn the 41 F2L cases and the triggers. Look for the next pair while you insert the current one. Plan the cross in inspection. Goal: about 45 seconds.`),
+      T(`<b>Stage 3: full PLL.</b> Learn the 21 PLLs, two or three at a time, and recognise them without a pause. Goal: about 30 seconds.`),
+      T(`<b>Stage 4: full OLL.</b> Learn the 57 OLLs a few at a time, starting with the ones you meet most. Goal: about 20 seconds.`),
+      T(`<b>Stage 5: refine.</b> Plan the cross and first pair together, choose a smart pair order, look ahead into the last layer, and try the ideas in the Advanced tab. Goals: 15 seconds and below.`),
+      T(`These times are rough guides. Everyone learns at a different speed and many people jump between stages.`),
+      H(`Your colours`),
+      T(`This guide says <b>white</b> for the cross colour (on the bottom) and <b>yellow</b> for the top colour, because that is the most common way to solve. If you cross on another colour, swap the words. The moves stay the same.`),
+      H(`Notation: how to read an alg`),
+      T(`<b>U D L R F B</b>: a quarter turn clockwise of that face (Up, Down, Left, Right, Front, Back). Clockwise means as if you look straight at that face.`),
+      T(`<b>R'</b> (say "R prime") is a quarter turn the other way. <b>R2</b> is a half turn.`),
+      T(`<b>r l u d f b</b> (small letters): the face and the middle layer next to it turn together, for example r = R and the middle layer.`),
+      T(`<b>M E S</b>: the three middle layers. M follows L, E follows D, S follows F.`),
+      T(`<b>x y z</b>: turn the whole cube like R, U or F. A prime turns it the other way.`),
+      T(`<b>AUF</b> (Adjust the Upper Face): a U, U' or U2 turn before or after an alg to line the top layer up.`),
+      H(`Words you will meet`),
+      T(`<b>Pair</b>: a corner and its edge joined next to each other.`),
+      T(`<b>Slot</b>: an empty place in the first two layers where a pair goes. There are 4 slots.`),
+      T(`<b>Trigger</b>: a short move sequence you do without thinking, like R U R' U'.`),
+      T(`<b>Lookahead</b>: finding the next piece while your hands do the current move.`),
+      T(`<b>Headlights</b>: two corners side by side on one face of the last layer that show the same colour.`),
+      T(`<b>Bar</b>: a whole side of the last layer (corner, edge, corner) with the same colour.`),
+      T(`<b>Skip</b>: when OLL or PLL is already solved, so you do nothing. Always check before you start an alg.`)
+    ]
+  };
+
+  const cross = {
+    n: 'Cross',
+    info: 'Build the 4 white edges on the bottom face. Each edge must also match the centre of the side face it touches. The cross is not solved with algs: you plan it during inspection, then do it from memory while you look for the first F2L pair.',
     tips: [
-      'Learn the 4 basic cases first, then solve everything else by intuition: separate the pair, then re-join.',
+      'Every cross can be solved in 8 moves or fewer. Aim for 6 to 8.',
+      'Use the whole 15 seconds of inspection to plan all four edges. If you start before the plan is finished, you lose time you cannot win back.',
+      'Look for an edge that is already in place, or close to it, and plan around it. Often one turn places two edges at once.',
+      'Plan so that each new edge does not knock out the ones you already placed.',
+      'Remember the plan as a list of moves. Then you can look at the cube during the cross and find the first F2L pair at the same time.',
+      'Keep the cross on the bottom. You see the first two layers while you solve them and you do not need to rotate the cube.',
+      'Later, learn to start the cross on any colour (colour neutral). It is slow to learn but removes bad scrambles.'
+    ],
+    algs: [
+      H(`Planning step by step`),
+      T(`<b>1.</b> Find where the 4 white edges are and which centre each one belongs next to (look at its other colour).`),
+      T(`<b>2.</b> Choose the edge that is already placed, or needs the fewest moves. That is your first edge.`),
+      T(`<b>3.</b> Look at the next edge. Find a way to place it without moving the first one away. Repeat for the last two edges.`),
+      T(`<b>4.</b> Count the moves. If it is more than 8, look again for a better first edge.`),
+      T(`<b>5.</b> Say the moves to yourself, then start.`),
+      H(`Placing one edge`),
+      T(`<b>White on top, edge in the top layer:</b> turn U until the edge's side colour is above the centre of the same colour. Then turn that face twice (F2, R2, B2 or L2). The edge goes down the right way round. That is 2 moves.`),
+      T(`<b>Edge in the middle layer, front-right, white on the right face:</b> turn F. The white sticker goes straight to the bottom and the other colour stays on the front.`),
+      T(`<b>Edge in the middle layer, front-right, white on the front face:</b> turn R. The white sticker goes to the top, then use the first rule.`),
+      T(`<b>Edge in the bottom layer, white on the bottom:</b> turn D until its side colour matches the centre. Only do this if it does not move an edge you already placed.`),
+      T(`<b>Edge in the bottom layer, white on the side:</b> turn the face it is on by a quarter turn. That lifts it into the middle layer, then use the middle layer rules.`),
+      T(`The other three middle layer slots work the same way. Just turn your idea of "front-right" to the slot you are looking at.`),
+      H(`Cross and first pair together`),
+      T(`Good solvers look for the first F2L pair while they solve the cross. Try to finish the cross with the first corner and edge already close to each other. This is where a lot of time is saved.`),
+      H(`Practice drills`),
+      T(`<b>Plan only:</b> scramble, inspect for 15 seconds, close your eyes, say your plan. Then do the moves to check it.`),
+      T(`<b>Cross only:</b> solve only the cross, 20 times, and write down the number of moves each time. Try to lower the average.`),
+      T(`<b>Cross and first pair:</b> stop after the first pair is inserted. Time it and try to avoid pauses.`),
+      H(`Common cross mistakes`),
+      T(`Starting to turn before the plan is complete.`),
+      T(`Using too many D turns. Most of the cross is planned around the top layer and slice moves.`),
+      T(`Forgetting to match the side colour with the centre, so the cross looks done but is not.`),
+      T(`Not looking at the first pair at all before the cross ends.`)
+    ]
+  };
+
+  const f2l = {
+    n: 'F2L',
+    info: 'First 2 Layers: pair each white corner with its edge, then insert the pair into its slot. Do it four times and the bottom two layers are solved. More than half of your solve is F2L, so this is where most of your speed comes from.',
+    tips: [
+      'Do not memorise 41 algs first. Understand how a pair is built, then use the list below to see the fast version of each case.',
       'Always look at the next pair while the current one is being inserted.',
       'Avoid cube rotations. Use U moves and d moves to set up slots instead.',
-      'Keep the pair on the top or on the opposite side of its slot so insertion is easy.',
-      'Slow, smooth turning with no pauses beats fast lookahead stops. Do not rush.'
+      'Keep the pair on top, or on the opposite side of its slot, so insertion is easy.',
+      'Slow, smooth turning with no pauses beats fast turning with stops. Do not rush.',
+      'Pick the easiest pair first, not a fixed slot. A hard last pair costs the most time.',
+      'Never turn the bottom layer (D) during F2L. If you need it, you are doing it the long way.',
+      'Try not to split a pair you have already built. If a move would split it, look for another way.',
+      'All algs below are for the front-right slot. For another slot, turn the whole cube (y, y\' or y2) so that slot is at the front right.'
     ],
     algs: [
-      H('1. Basic cases'), ...L('F2L', ["R U R'", "F' U' F", "U R U' R'", "U' F' U F"]),
-      H('2. Corner and edge in top'), ...L('F2L', ["U' R U' R' U R U R'", "U F' U F U' F' U' F", "U' R U R' U R U R'", "U F' U' F U' F' U' F", "d R' U2 R d' R U R'", "U' R U2 R' d R' U' R", "R U' R' U d R' U' R", "F' U F U' d' F U F'", "U F' U2 F U F' U2 F", "U' R U2 R' U' R U2 R'", "U F' U' F U F' U2 F", "U' R U R' U' R U2 R'"]),
-      H('3. Corner pointing up, edge in top'), ...L('F2L', ["R U2 R' U' R U R'", "F' U2 F U F' U' F", "U R U2 R' U R U' R'", "U' F' U2 F U' F' U F", "U2 R U R' U R U' R'", "U2 F' U' F U' F' U F", "R U R' U' U' R U R' U' R U R'", "y' R' U' R U U R' U' R U R' U' R"]),
-      H('4. Corner in top, edge in middle'), ...L('F2L', ["U F' U F U F' U2 F", "U' R U' R' U' R U2 R'", "U F' U' F d' F U F'", "U' R U R' d R' U' R", "R U' R' d R' U R", "R U R' U' R U R' U' R U R'"]),
-      H('5. Corner in bottom, edge in top'), ...L('F2L', ["U R U' R' U' F' U F", "U' F' U F U R U' R'", "F' U F U' F' U F", "R U' R' U R U' R'", "R U R' U' R U R'", "F' U' F U F' U' F"]),
-      H('6. Corner in bottom, edge in middle'), ...L('F2L', ["R U' R' U R U2 R' U R U' R'", "R U' R' U' R U R' U' R U2 R'", "R U R' U' R U' R' U d R' U' R", "R U' R' d R' U' R U' R' U' R", "R U' R' d R' U2 R U R' U2 R"])
+      H(`What you are doing`),
+      T(`Between the cross edges there are 4 slots (front-right, front-left, back-left, back-right). Each slot takes one <b>pair</b>: a white corner and the edge that goes next to it (the edge has no white and no yellow). When all four slots are filled, the bottom two layers are done.`),
+      T(`Work pair by pair: find a corner, find its edge, join them into a pair (matching colours next to each other), then insert the pair. Do not break the cross.`),
+      H(`How to read the notes`),
+      T(`Hold the cube with the cross on the bottom and the slot to fill at the front right. <b>UFR</b> is the top-layer corner right above the slot, <b>DFR</b> is the slot corner. <b>UF, UR, UL, UB</b> are top-layer edges, <b>FR</b> is the slot edge.`),
+      T(`<i>white</i> is your cross colour. <i>front colour</i> is the colour of the front centre. Each note says which face these stickers point to (U = up, D = down, F = front, R = right, L = left, B = back).`),
+      H(`Triggers (building blocks)`),
+      T(`<b>R U R'</b> and <b>R U' R'</b>: the two basic right-side moves. They bring a pair together or put it in.`),
+      T(`<b>F' U' F</b> and <b>F' U F</b>: the same ideas for the left side of the slot.`),
+      T(`<b>R U R' U'</b>: the "sexy move". Doing it 6 times in a row brings the cube back to where it started. Many F2L algs are made of it.`),
+      H(`1. Basic inserts (4 cases)`),
+      T(`The shortest cases, 3 or 4 moves. Both pieces are on top and the white sticker is on the side. Learn these first. Many other cases turn into one of these after a move or two.`),
+      ["F2L 1", "R U R'", "Corner UFR (white faces R) · Edge UB (front colour faces U)"],
+      ["F2L 2", "F' U' F", "Corner UFR (white faces F) · Edge UL (front colour faces L)"],
+      ["F2L 3", "U R U' R'", "Corner UFR (white faces F) · Edge UR (front colour faces U)"],
+      ["F2L 4", "U' F' U F", "Corner UFR (white faces R) · Edge UF (front colour faces F)"],
+      H(`2. Both on top, white on the side (12 cases)`),
+      T(`The corner and edge are not joined yet. The alg joins them and puts them in. Look at how the first moves bring the two pieces together.`),
+      ["F2L 5", "U' R U' R' U R U R'", "Corner UFR (white faces R) · Edge UR (front colour faces U)"],
+      ["F2L 6", "U F' U F U' F' U' F", "Corner UFR (white faces F) · Edge UF (front colour faces F)"],
+      ["F2L 7", "U' R U R' U R U R'", "Corner UFR (white faces R) · Edge UL (front colour faces U)"],
+      ["F2L 8", "U F' U' F U' F' U' F", "Corner UFR (white faces F) · Edge UB (front colour faces B)"],
+      ["F2L 9", "d R' U2 R d' R U R'", "Corner UFR (white faces R) · Edge UF (front colour faces U)"],
+      ["F2L 10", "U' R U2 R' d R' U' R", "Corner UFR (white faces F) · Edge UR (front colour faces R)"],
+      ["F2L 11", "R U' R' U d R' U' R", "Corner UFR (white faces R) · Edge UR (front colour faces R)"],
+      ["F2L 12", "F' U F U' d' F U F'", "Corner UFR (white faces F) · Edge UF (front colour faces U)"],
+      ["F2L 13", "U F' U2 F U F' U2 F", "Corner UFR (white faces R) · Edge UB (front colour faces B)"],
+      ["F2L 14", "U' R U2 R' U' R U2 R'", "Corner UFR (white faces F) · Edge UL (front colour faces U)"],
+      ["F2L 15", "U F' U' F U F' U2 F", "Corner UFR (white faces R) · Edge UL (front colour faces L)"],
+      ["F2L 16", "U' R U R' U' R U2 R'", "Corner UFR (white faces F) · Edge UB (front colour faces U)"],
+      H(`3. Both on top, white pointing up (8 cases)`),
+      T(`The corner has its white sticker facing up. Join the pair first, then insert it. Several of these are left and right mirrors of each other.`),
+      ["F2L 17", "R U2 R' U' R U R'", "Corner UFR (white faces U) · Edge UR (front colour faces U)"],
+      ["F2L 18", "F' U2 F U F' U' F", "Corner UFR (white faces U) · Edge UF (front colour faces F)"],
+      ["F2L 19", "U R U2 R' U R U' R'", "Corner UFR (white faces U) · Edge UB (front colour faces U)"],
+      ["F2L 20", "U' F' U2 F U' F' U F", "Corner UFR (white faces U) · Edge UL (front colour faces L)"],
+      ["F2L 21", "U2 R U R' U R U' R'", "Corner UFR (white faces U) · Edge UL (front colour faces U)"],
+      ["F2L 22", "U2 F' U' F U' F' U F", "Corner UFR (white faces U) · Edge UB (front colour faces B)"],
+      ["F2L 23", "R U R' U' U' R U R' U' R U R'", "Corner UFR (white faces U) · Edge UF (front colour faces U)"],
+      ["F2L 24", "y' R' U' R U U R' U' R U R' U' R", "Corner UFR (white faces U) · Edge UR (front colour faces R)"],
+      H(`4. Corner on top, edge in the slot (6 cases)`),
+      T(`The edge is already in the middle layer, but not joined to the corner. Lift the edge out or put the corner next to it, then solve it like a case above.`),
+      ["F2L 25", "U F' U F U F' U2 F", "Corner UFR (white faces R) · Edge FR (front colour faces F)"],
+      ["F2L 26", "U' R U' R' U' R U2 R'", "Corner UFR (white faces F) · Edge FR (front colour faces F)"],
+      ["F2L 27", "U F' U' F d' F U F'", "Corner UFR (white faces R) · Edge FR (front colour faces R)"],
+      ["F2L 28", "U' R U R' d R' U' R", "Corner UFR (white faces F) · Edge FR (front colour faces R)"],
+      ["F2L 29", "R U' R' d R' U R", "Corner UFR (white faces U) · Edge FR (front colour faces R)"],
+      ["F2L 30", "R U R' U' R U R' U' R U R'", "Corner UFR (white faces U) · Edge FR (front colour faces F)"],
+      H(`5. Corner in the slot, edge on top (6 cases)`),
+      T(`The corner is in the slot and the edge is on top. The alg puts the edge in next to the corner, or lifts both out and puts them in together.`),
+      ["F2L 31", "U R U' R' U' F' U F", "Corner DFR (white faces D) · Edge UF (front colour faces F)"],
+      ["F2L 32", "U' F' U F U R U' R'", "Corner DFR (white faces D) · Edge UR (front colour faces U)"],
+      ["F2L 33", "F' U F U' F' U F", "Corner DFR (white faces R) · Edge UF (front colour faces F)"],
+      ["F2L 34", "R U' R' U R U' R'", "Corner DFR (white faces F) · Edge UR (front colour faces U)"],
+      ["F2L 35", "R U R' U' R U R'", "Corner DFR (white faces R) · Edge UR (front colour faces U)"],
+      ["F2L 36", "F' U' F U F' U' F", "Corner DFR (white faces F) · Edge UF (front colour faces F)"],
+      H(`6. Both in the slot (5 cases)`),
+      T(`Both pieces are in the slot but wrong (twisted, flipped or not paired). Take them out to the top layer with a short move, then solve it like an easier case. These algs are the longest, so learn them last.`),
+      ["F2L 37", "R U' R' U R U2 R' U R U' R'", "Corner DFR (white faces R) · Edge FR (front colour faces F)"],
+      ["F2L 38", "R U' R' U' R U R' U' R U2 R'", "Corner DFR (white faces F) · Edge FR (front colour faces F)"],
+      ["F2L 39", "R U R' U' R U' R' U d R' U' R", "Corner DFR (white faces R) · Edge FR (front colour faces R)"],
+      ["F2L 40", "R U' R' d R' U' R U' R' U' R", "Corner DFR (white faces F) · Edge FR (front colour faces R)"],
+      ["F2L 41", "R U' R' d R' U2 R U R' U2 R", "Corner DFR (white faces D) · Edge FR (front colour faces R)"],
     ]
-  },
-  oll: {
-    info: 'Orient the Last Layer: make the whole top face yellow. Start with 2-look (10 algs), then learn the full 57 over time.',
+  };
+
+  const oll = {
+    n: 'OLL',
+    info: 'Orient the Last Layer: make the whole top face yellow. You do not care where the pieces are, only which way they face. Start with 2-look (10 algs), then learn the full 57 over time.',
     tips: [
-      '2-look: first make the yellow cross (3 algs), then solve the corners (7 algs).',
-      'Learn by shape. Group cases that share a trigger like R U R\' U\'.',
+      'Look at the edges first: dot, L shape, line or cross. Then count the yellow corners.',
+      'The pictures show the top face and the stickers on the sides of the top layer. Turn U until your top looks like the picture, then do the alg. Do not rotate the whole cube.',
+      'Learn by shape. Cases in the same group often share a trigger like R U R\' U\'.',
       'Practise each alg slowly until it is smooth, then speed up. Do not drill a new alg at full speed.',
-      'Add a few full OLLs at a time. Start with the ones you hit most often.',
-      'Look at the whole layer before you start. Recognition is half the time.'
+      'Add a few full OLLs at a time. Start with the ones you meet most often.',
+      'Look at the whole layer before you start. Recognition is half the time.',
+      'While you insert the last F2L pair, look at the top layer. Then you can start OLL without a pause.'
     ],
     algs: [
-      H('2-look OLL: cross'), ['Line', "F R U R' U' F'"], ['L shape', "f R U R' U' f'"], ['Dot', "F R U R' U' F' f R U R' U' f'"],
-      H('2-look OLL: corners'), ['Sune', "R U R' U R U2 R'"], ['Anti-Sune', "R U2 R' U' R U' R'"], ['H', "F R U R' U' R U R' U' R U R' U' F'"], ['Pi', "R U2 R2 U' R2 U' R2 U2 R"], ['U', "R2 D R' U2 R D' R' U2 R'"], ['T', "r U R' U' r' F R F'"], ['L', "F R' F' r U R U' r'"],
-      H('Full OLL: crosses'), ...N('OLL ', ["27 R' U2 R U R' U R", "26 R U2 R' U' R U' R'", "25 F' r U R' U' r' F R", "24 r U R' U' r' F R F'", "22 R U2 R2 U' R2 U' R2 U2 R", "21 R U R' U R U' R' U R U2 R'", "23 R2 D R' U2 R D' R' U2 R'"]),
-      H('Dots'), ...N('OLL ', ["1 R U2 R' R' F R F' U2 R' F R F'", "2 F R U R' U' F' f R U R' U' f'", "4 f R U R' U' f' U F R U R' U' F'", "3 f R U R' U' f' U' F R U R' U' F'", "19 M U R U R' U' M' R' F R F'", "18 F R U R' U y' R' U2 R' F R F'", "17 R U R' U R' F R F' U2 R' F R F'", "20 M U R U R' U' M2 U R U' r'"]),
-      H('All corners oriented'), ...N('OLL ', ["57 R U R' U' M' U R U' r'", "28 M' U' M U2 M' U' M"]),
-      H('Lines'), ...N('OLL ', ["55 R U2 R2 U' R U' R' U2 F R F'", "52 R U R' U R d' R U' R' F'", "51 f R U R' U' R U R' U' f'", "56 F R U R' U' R F' r U R' U' r'"]),
-      H('T shapes'), ...N('OLL ', ["45 F R U R' U' F'", "33 R U R' U' R' F R F'"]),
-      H('Z shapes'), ...N('OLL ', ["40 R' F R U R' U' F' U R", "39 L F' L' U' L U F U' L'"]),
-      H('Big L shapes'), ...N('OLL ', ["14 R' F R U R' F' R y' R U' R'", "13 F U R U' R2 F' R U R U' R'", "16 r U r' R U R' U' r U' r'", "15 l' U' l L' U' L U l' U l"]),
-      H('C shapes'), ...N('OLL ', ["46 R' U' R' F R F' U R", "34 R U R' U' x D' R' U R U' D x'"]),
-      H('W shapes'), ...N('OLL ', ["38 R U R' U R U' R' U' R' F R F'", "36 L' U' L U' L' U L U L F' L' F"]),
-      H('P shapes'), ...N('OLL ', ["44 f R U R' U' f'", "43 f' L' U' L U f", "31 R' U' F U R U' R' F' R", "32 F U R U' F' r U R' U' r'"]),
-      H('Square shapes'), ...N('OLL ', ["35 R U2 R' R' F R F' R U2 R'", "37 F R' F' R U R U' R'", "5 r' U2 R U R' U r", "6 r U2 R' U' R U' r'"]),
-      H('Small L shapes'), ...N('OLL ', ["48 F R U R' U' R U R' U' F'", "47 F' L' U' L U L' U' L U F", "50 R' F R2 B' R2 F' R2 B R'", "49 R' F R' F' R2 U2 y R' F R F'", "53 l' U' L U' L' U L U' L' U2 l", "54 r U R' U R U' R' U R U2 r'"]),
-      H('Other shapes'), ...N('OLL ', ["11 F' L' U' L U F y F R U R' U' F'", "12 F R U R' U' F' U F R U R' U' F'", "7 r U R' U R U2 r'", "8 r' U' R U' R' U2 r", "10 R U R' U R' F R F' R U2 R'", "9 R U R' U' R' F R2 U R' U' F'", "29 R U R' U' R U' R' F' U' F R U R'", "42 R' F R F' R' F R F' R U R' U' R U R'", "41 R U R' U R U2 R' F R U R' U' F'", "30 L F' L' F L' U2 L d R U R'"])
+      H(`How to read the pictures`),
+      T(`The big square is the top face. The small bars around it are the stickers on the sides of the top layer. <b>Yellow</b> = a yellow sticker. <b>Grey</b> = any other colour. A <b>faint</b> square means "does not matter at this step". Front is at the bottom of the picture.`),
+      H(`2-look OLL, look 1: make the yellow cross`),
+      T(`Look at the 4 top edges. Turn U until your top looks like the picture, then do the alg. If you have the dot, the alg is the line alg and the L alg done one after the other. After this step all 4 edges are yellow on top.`),
+      ["Line", "F R U R' U' F'", "Two yellow edges opposite each other (a line).", "o202111202212202212202"],
+      ["L shape", "f R U R' U' f'", "Two yellow edges next to each other (an L).", "o202011212212202202212"],
+      ["Dot", "F R U R' U' F' f R U R' U' f'", "No yellow edges (a dot). This is the line alg and the L alg one after the other.", "o202010202212212212212"],
+      H(`2-look OLL, look 2: turn the corners`),
+      T(`Count the yellow corners on top. <b>0 yellow:</b> H or Pi. <b>1 yellow:</b> Sune or Anti-Sune. <b>2 yellow:</b> T, U or L. Turn U until your top looks like the picture, then do the alg. When you are done the whole top is yellow.`),
+      ["Sune", "R U R' U R U2 R'", "1 yellow corner on top.", "o010111110100100001000"],
+      ["Anti-Sune", "R U2 R' U' R U' R'", "1 yellow corner on top.", "o011111010000001100100"],
+      ["H", "F R U R' U' R U R' U' R U R' U' F'", "0 yellow corners on top.", "o010111010101000101000"],
+      ["Pi", "R U2 R2 U' R2 U' R2 U2 R", "0 yellow corners on top.", "o010111010001000001101"],
+      ["U", "R2 D R' U2 R D' R' U2 R'", "2 yellow corners on top.", "o111111010000000101000"],
+      ["T", "r U R' U' r' F R F'", "2 yellow corners on top.", "o011111011100000100000"],
+      ["L", "F R' F' r U R U' r'", "2 yellow corners on top.", "o110111011000100100000"],
+      H(`Crosses: all 4 edges are already yellow (7 cases)`),
+      ["OLL 27", "R' U2 R U R' U R", "4 yellow edges and 1 yellow corner on top", "o010111011100100000001"],
+      ["OLL 26", "R U2 R' U' R U' R'", "4 yellow edges and 1 yellow corner on top", "o011111010000001100100"],
+      ["OLL 25", "F' r U R' U' r' F R", "4 yellow edges and 2 yellow corners on top", "o011111110000000001100"],
+      ["OLL 24", "r U R' U' r' F R F'", "4 yellow edges and 2 yellow corners on top", "o011111011100000100000"],
+      ["OLL 22", "R U2 R2 U' R2 U' R2 U2 R", "4 yellow edges and 0 yellow corners on top", "o010111010001000001101"],
+      ["OLL 21", "R U R' U R U' R' U R U2 R'", "4 yellow edges and 0 yellow corners on top", "o010111010000101000101"],
+      ["OLL 23", "R2 D R' U2 R D' R' U2 R'", "4 yellow edges and 2 yellow corners on top", "o111111010000000101000"],
+      H(`Dots: no yellow edges`),
+      ["OLL 1", "R U2 R' R' F R F' U2 R' F R F'", "0 yellow edges and 0 yellow corners on top", "o000010000010111010111"],
+      ["OLL 2", "F R U R' U' F' f R U R' U' f'", "0 yellow edges and 0 yellow corners on top", "o000010000011010011111"],
+      ["OLL 4", "f R U R' U' f' U F R U R' U' F'", "0 yellow edges and 1 yellow corner on top", "o001010000010011110110"],
+      ["OLL 3", "f R U R' U' f' U' F R U R' U' F'", "0 yellow edges and 1 yellow corner on top", "o000010001110110010011"],
+      ["OLL 19", "M U R U R' U' M' R' F R F'", "0 yellow edges and 2 yellow corners on top", "o101010000010011010011"],
+      ["OLL 18", "F R U R' U y' R' U2 R' F R F'", "0 yellow edges and 2 yellow corners on top", "o000010101111010010010"],
+      ["OLL 17", "R U R' U R' F R F' U2 R' F R F'", "0 yellow edges and 2 yellow corners on top", "o100010001011010010011"],
+      ["OLL 20", "M U R U R' U' M2 U R U' r'", "0 yellow edges and 4 yellow corners on top", "o101010101010010010010"],
+      H(`All 4 corners yellow, edges not`),
+      ["OLL 57", "R U R' U' M' U R U' r'", "2 yellow edges and 4 yellow corners on top", "o101111101010000010000"],
+      ["OLL 28", "M' U' M U2 M' U' M", "2 yellow edges and 4 yellow corners on top", "o101110111010010000000"],
+      H(`Lines`),
+      ["OLL 55", "R U2 R2 U' R U' R' U2 F R F'", "2 yellow edges and 0 yellow corners on top", "o010010010000111000111"],
+      ["OLL 52", "R U R' U R d' R U' R' F'", "2 yellow edges and 0 yellow corners on top", "o010010010100111100010"],
+      ["OLL 51", "f R U R' U' R U R' U' f'", "2 yellow edges and 0 yellow corners on top", "o000111000011000011101"],
+      ["OLL 56", "F R U R' U' R F' r U R' U' r'", "2 yellow edges and 0 yellow corners on top", "o000111000010101010101"],
+      H(`T shapes`),
+      ["OLL 45", "F R U R' U' F'", "2 yellow edges and 2 yellow corners on top", "o001111001010000010101"],
+      ["OLL 33", "R U R' U' R' F R F'", "2 yellow edges and 2 yellow corners on top", "o001111001110000110000"],
+      H(`Z shapes`),
+      ["OLL 40", "R' F R U R' U' F' U R", "2 yellow edges and 2 yellow corners on top", "o100111001011000010001"],
+      ["OLL 39", "L F' L' U' L U F U' L'", "2 yellow edges and 2 yellow corners on top", "o001111100110001010000"],
+      H(`Big L shapes`),
+      ["OLL 14", "R' F R U R' F' R y' R U' R'", "2 yellow edges and 1 yellow corner on top", "o000111001011000110100"],
+      ["OLL 13", "F U R U' R2 F' R U R U' R'", "2 yellow edges and 1 yellow corner on top", "o000111100110100011000"],
+      ["OLL 16", "r U r' R U R' U' r U' r'", "2 yellow edges and 1 yellow corner on top", "o001111000010001110100"],
+      ["OLL 15", "l' U' l L' U' L U l' U l", "2 yellow edges and 1 yellow corner on top", "o100111000010100011001"],
+      H(`C shapes`),
+      ["OLL 46", "R' U' R' F R F' U R", "2 yellow edges and 2 yellow corners on top", "o110010110000111000010"],
+      ["OLL 34", "R U R' U' x D' R' U R U' D x'", "2 yellow edges and 2 yellow corners on top", "o000111101010100010100"],
+      H(`W shapes`),
+      ["OLL 38", "R U R' U R U' R' U' R' F R F'", "2 yellow edges and 2 yellow corners on top", "o011110100100011010000"],
+      ["OLL 36", "L' U' L U' L' U L U L F' L' F", "2 yellow edges and 2 yellow corners on top", "o110011001001000010011"],
+      H(`P shapes`),
+      ["OLL 44", "f R U R' U' f'", "2 yellow edges and 2 yellow corners on top", "o001011011010000000111"],
+      ["OLL 43", "f' L' U' L U f", "2 yellow edges and 2 yellow corners on top", "o100110110010111000000"],
+      ["OLL 31", "R' U' F U R U' R' F' R", "2 yellow edges and 2 yellow corners on top", "o011011001100000110010"],
+      ["OLL 32", "F U R U' F' r U R' U' r'", "2 yellow edges and 2 yellow corners on top", "o110110100001010011000"],
+      H(`Square shapes`),
+      ["OLL 35", "R U2 R' R' F R F' R U2 R'", "2 yellow edges and 2 yellow corners on top", "o100011011010100100010"],
+      ["OLL 37", "F R' F' R U R U' R'", "2 yellow edges and 2 yellow corners on top", "o110110001000110110000"],
+      ["OLL 5", "r' U2 R U R' U r", "2 yellow edges and 1 yellow corner on top", "o000011011110100000011"],
+      ["OLL 6", "r U2 R' U' R U' r'", "2 yellow edges and 1 yellow corner on top", "o011011000000001110110"],
+      H(`Small L shapes`),
+      ["OLL 48", "F R U R' U' R U R' U' F'", "2 yellow edges and 0 yellow corners on top", "o010110000001010011101"],
+      ["OLL 47", "F' L' U' L U L' U' L U F", "2 yellow edges and 0 yellow corners on top", "o010011000100101110010"],
+      ["OLL 50", "R' F R2 B' R2 F' R2 B R'", "2 yellow edges and 0 yellow corners on top", "o010110000100111110000"],
+      ["OLL 49", "R' F R' F' R2 U2 y R' F R F'", "2 yellow edges and 0 yellow corners on top", "o010011000001000011111"],
+      ["OLL 53", "l' U' L U' L' U L U' L' U2 l", "2 yellow edges and 0 yellow corners on top", "o010110000000111010101"],
+      ["OLL 54", "r U R' U R U' R' U R U2 r'", "2 yellow edges and 0 yellow corners on top", "o010011000000101010111"],
+      H(`Other shapes`),
+      ["OLL 11", "F' L' U' L U F y F R U R' U' F'", "2 yellow edges and 1 yellow corner on top", "o100110010010110001001"],
+      ["OLL 12", "F R U R' U' F' U F R U R' U' F'", "2 yellow edges and 1 yellow corner on top", "o001011010010001100110"],
+      ["OLL 7", "r U R' U R U2 r'", "2 yellow edges and 1 yellow corner on top", "o010110100100110011000"],
+      ["OLL 8", "r' U' R U' R' U2 r", "2 yellow edges and 1 yellow corner on top", "o100110010011011100000"],
+      ["OLL 10", "R U R' U R' F R F' R U2 R'", "2 yellow edges and 1 yellow corner on top", "o001110010110010001001"],
+      ["OLL 9", "R U R' U' R' F R2 U R' U' F'", "2 yellow edges and 1 yellow corner on top", "o010110001001010110100"],
+      ["OLL 29", "R U R' U' R U' R' F' U' F R U R'", "2 yellow edges and 2 yellow corners on top", "o011110001100010110000"],
+      ["OLL 42", "R' F R F' R' F R F' R U R' U' R U R'", "2 yellow edges and 2 yellow corners on top", "o011110001000010010101"],
+      ["OLL 41", "R U R' U R U2 R' F R U R' U' F'", "2 yellow edges and 2 yellow corners on top", "o010110101101010010000"],
+      ["OLL 30", "L F' L' F L' U2 L d R U R'", "2 yellow edges and 2 yellow corners on top", "o010110101000110010100"],
     ]
-  },
-  pll: {
-    info: 'Permute the Last Layer: move the pieces into place. 2-look PLL: corners with Aa or Y, then edges with Ua, Ub, H or Z. Learn the other perms later.',
+  };
+
+  const pll = {
+    n: 'PLL',
+    info: 'Permute the Last Layer: move the pieces into place. 2-look PLL needs 6 algs: Aa and Y for the corners, then Ua, Ub, H and Z for the edges. Learn the other perms later.',
     tips: [
-      'Recognise by looking for headlights (two matching corners side by side) and blocks of matching colours.',
-      'Turn U (AUF) at the end to finish. Plan it as you do the alg.',
-      'Do not rotate the cube during an alg. The rotations x, y in the list are one-time setups.',
-      'Start with 2-look PLL (6 algs), then add T, J, Y, F, R, V, N, G.',
-      'Never pause before the last U turn. A pause there costs more time than any alg.'
+      'Look for headlights (two corners side by side with the same colour) and bars (a whole side with the same colour). They tell you the case fast.',
+      'Turn U (AUF) at the end to finish. Plan it while you do the alg.',
+      'Some algs start with x. Turn the cube once at the start, then keep going. All other algs are done without turning the cube.',
+      'Start with 2-look PLL (6 algs), then add T, J, F, R, V, N, G, E and Ab.',
+      'Never pause before the last U turn. A pause there costs more time than any alg.',
+      'Learn recognition as well as the alg. Look at a case for one second and say its name before you do the alg.'
     ],
     algs: [
-      H('Edges only'), ...N('', ["H M2 U M2 U2 M2 U M2", "Z M' U M2 U M2 U M' U2 M2", "Ua R2 U' R' U' R U R U R U' R", "Ub R' U R' U' R' U' R' U R U R2"]),
-      H('Corners only'), ...N('', ["Aa x R' U R' D2 R U' R' D2 R2", "Ab x R2 D2 R U R' D2 R U' R", "E x' R U' R' D R U R' D' R U R' D R U' R' D'"]),
-      H('Edges and corners'), ...N('', ["T R U R' U' R' F R2 U' R' U' R U R' F'", "Y F R U' R' U' R U R' F' R U R' U' R' F R F'", "F R' U' F' R U R' U' R' F R2 U' R' U' R U R' U R", "V R' U R' U' y R' F' R2 U' R' U R' F R F", "Ja R' U L' U2 R U' R' U2 R L", "Jb R U R' F' R U R' U' R' F R2 U' R'", "Ra R U' R' U' R U R D R' U' R D' R' U2 R'", "Rb R' U2 R U2 R' F R U R' U' R' F' R2", "Na R U R' U R U R' F' R U R' U' R' F R2 U' R' U2 R U' R'", "Nb R' U R U' R' F' U' F R U R' F R' F' R U' R", "Ga R2 U R' U R' U' R U' R2 D U' R' U R D'", "Gb R' U' R U D' R2 U R' U R U' R U' R2 D", "Gc R2 U' R U' R U R' U R2 D' U R U' R' D", "Gd R U R' U' D R2 U' R U' R' U R' U R2 D'"])
+      H(`How to read the pictures`),
+      T(`The yellow square is the top face. The coloured bars are the side stickers of the top layer, with the front at the bottom of the picture. The picture shows the case as the alg starts, and the note tells you if you need a U turn before or after it. Colours: green front, orange right, blue back, red left. If your cube uses other colours, only look at which stickers match each other.`),
+      H(`2-look PLL`),
+      T(`<b>Look 1, corners.</b> Look at the corners on each side. <i>Headlights on exactly one side:</i> turn U until the headlights are at the back, then do <b>Aa</b>. <i>No headlights anywhere:</i> do <b>Y</b>. <i>Headlights on all four sides:</i> the corners are already solved.`),
+      T(`<b>Look 2, edges.</b> <i>One side has a bar:</i> turn U until the bar is at the front. If the back edge belongs on the left, do <b>Ua</b>. If it belongs on the right, do <b>Ub</b>. <i>No bar:</i> if every edge belongs on the opposite side, do <b>H</b>. If every edge belongs on a neighbouring side, do <b>Z</b>. Finish with a U turn.`),
+      H(`Edges only (the corners are already solved)`),
+      ["H", "M2 U M2 U2 M2 U M2", "Swaps two pairs of opposite edges. Headlights on every side.", "pBFBRLRFBFLRL"],
+      ["Z", "M' U M2 U M2 U M' U2 M2", "Swaps two pairs of neighbouring edges. Headlights on every side. Turn U' first.", "pBLBRFRFRFLBL"],
+      ["Ua", "R2 U' R' U' R U R U R U' R", "Cycles 3 edges. Headlights on the back, right and left, bar on the front.", "pBLBRBRFFFLRL"],
+      ["Ub", "R' U R' U' R' U' R' U R U R2", "Cycles 3 edges. Headlights on the back, right and left, bar on the front.", "pBRBRLRFFFLBL"],
+      H(`Corners only (the edges are already solved)`),
+      ["Aa", "x R' U R' D2 R U' R' D2 R2", "Cycles 3 corners. Headlights on the back.", "pRBRFRLFFBBLL"],
+      ["Ab", "x R2 D2 R U R' D2 R U' R", "Cycles 3 corners. Headlights on the right.", "pFBLBRBFFRRLL"],
+      ["E", "x' R U' R' D R U R' D' R U R' D R U' R' D'", "Swaps two pairs of neighbouring corners. No headlights and no bar.", "pLBRFRBLFRFLB"],
+      H(`Corners and edges both move`),
+      ["T", "R U R' U' R' F R2 U' R' U' R U R' F'", "Swaps two neighbouring corners and swaps two opposite edges. Headlights on the left.", "pBBRFLBFFRLRL"],
+      ["Y", "F R U' R' U' R U R' F' R U R' U' R' F R F'", "Swaps two opposite corners and swaps two neighbouring edges. No headlights and no bar.", "pFLBRRLFFBRBL"],
+      ["F", "R' U' F' R U R' U' R' F R2 U' R' U' R U R' U R", "Swaps two neighbouring corners and swaps two opposite edges. Bar on the left.", "pBFRFRBFBRLLL"],
+      ["V", "R' U R' U' y R' F' R2 U' R' U R' F R F", "Swaps two opposite corners and swaps two neighbouring edges. No headlights and no bar.", "pFRBRBLFFBRLL"],
+      ["Ja", "R' U L' U2 R U' R' U2 R L", "Swaps two neighbouring corners and swaps two neighbouring edges. Bar on the left. Turn U' first.", "pBRRFBBFFRLLL"],
+      ["Jb", "R U R' F' R U R' U' R' F R2 U' R'", "Swaps two neighbouring corners and swaps two neighbouring edges. Bar on the back. Turn U' first.", "pBBBRRFRLLLFF"],
+      ["Ra", "R U' R' U' R U R D R' U' R D' R' U2 R'", "Swaps two neighbouring corners and swaps two neighbouring edges. Headlights on the back. Turn U' first.", "pBRBRBFRFLLLF"],
+      ["Rb", "R' U2 R U2 R' F R U R' U' R' F' R2", "Swaps two neighbouring corners and swaps two neighbouring edges. Headlights on the left. Turn U' first.", "pBBRFRBFLRLFL"],
+      ["Na", "R U R' U R U R' F' R U R' U' R' F R2 U' R' U2 R U' R'", "Swaps two opposite corners and swaps two opposite edges. No headlights and no bar.", "pBBFLLRBFFLRR"],
+      ["Nb", "R' U R U' R' F' U' F R U R' F R' F' R U' R", "Swaps two opposite corners and swaps two opposite edges. No headlights and no bar.", "pFBBRLLFFBRRL"],
+      ["Ga", "R2 U R' U R' U' R U' R2 D U' R' U R D'", "Cycles 3 corners and cycles 3 edges. Headlights on the back. Turn U' first.", "pLBLBFRBLFFRR"],
+      ["Gb", "R' U' R U D' R2 U R' U R U' R U' R2 D", "Cycles 3 corners and cycles 3 edges. Headlights on the back. Turn U' first.", "pLRLBLRBFFFBR"],
+      ["Gc", "R2 U' R U' R U R' U R2 D' U R U' R' D", "Cycles 3 corners and cycles 3 edges. Headlights on the back. Turn U' first.", "pLFLBRRBLFFBR"],
+      ["Gd", "R U R' U' D R2 U' R U' R' U R' U R2 D'", "Cycles 3 corners and cycles 3 edges. Headlights on the back. Turn U' first.", "pLRLBFRBBFFLR"],
     ]
-  }
-};
+  };
 
-// ---- All methods in one structure: method -> tabs -> [heading '#', text 't', or [name, alg]] ----
-const T = s => ['t', s];
-const B3 = s => s.split('\n').map(x => { const m = x.match(/^(.*?)\s+\((.*)\)$/); return m ? [m[2], m[1]] : ['Alg', x]; });
-const OC = CFOP.oll.algs.slice(5, 12); // 7 corner orientation algs (Sune ... L)
+  const train = {
+    n: 'Practice',
+    info: 'How to practise so you improve every week: slow solves for lookahead, short drills for each step, and a way to find what to fix next.',
+    tips: [
+      'Short sessions every day beat one long session once a week.',
+      'Slow solves build lookahead faster than fast solves. Turn at half speed and keep your eyes on the next pair.',
+      'Drill the cases that make you stop. One second of pause costs more than a slow turn.',
+      'Stop when you are tired. Practice full of mistakes teaches the mistakes.'
+    ],
+    algs: [
+      H(`A 30 minute session`),
+      T(`<b>10 minutes, slow solves:</b> full solves at about half speed. Do not stop between steps. Look for the next piece before the current one ends.`),
+      T(`<b>10 minutes, drills:</b> pick your weakest step and use the drills below.`),
+      T(`<b>10 minutes, timed solves:</b> 5 to 10 solves. Look at your ao5 and ao12 more than at single times.`),
+      H(`Drills for each step`),
+      T(`<b>Cross:</b> inspect and plan for 15 seconds, then solve only the cross and count the moves. Do it 20 times.`),
+      T(`<b>Cross and first pair:</b> solve the cross and the first pair with no pause. Try to find the pair while you finish the cross.`),
+      T(`<b>F2L:</b> solve the cross and F2L only and note the time. Do 10 in a row. Watch for the longest pause each time.`),
+      T(`<b>OLL:</b> pick 2 or 3 algs and do each one 10 times slowly, then fast. Then mix them in random order.`),
+      T(`<b>PLL:</b> do each PLL 3 times in a row, then in random order. For recognition: look at a case for one second and say its name.`),
+      T(`<b>AUF:</b> do the alg and the last U turn as one move without a pause.`),
+      H(`Finding what to fix`),
+      T(`Record a few solves or watch your hands. Find the longest pause. That is what to work on next. Common pauses: after the cross (looking for the first pair), between pairs (no lookahead), before OLL (recognition) and before the last U turn (planning the AUF).`),
+      H(`Common mistakes`),
+      T(`Learning many algs before F2L is smooth. A slow F2L costs much more than a missing OLL.`),
+      T(`Looking at the cube only when a move ends. Look ahead while your fingers are still turning.`),
+      T(`Rotating the cube a lot. Use U moves, d moves and the right alg for the slot you have.`),
+      T(`Rushing a new alg. Learn it slowly first. Speed comes after it is smooth.`),
+      T(`Turning the bottom layer in F2L. It breaks the cross and wastes time.`),
+      H(`Hands`),
+      T(`Hold the cube loosely with your thumbs resting on the sides. Turn with your fingers and wrists, not with your arms. Turn quickly but without force and stop each turn exactly on the face. Relaxed hands are faster and the cube pops less.`)
+    ]
+  };
 
-const M = {
-  beg: {
-    n: 'Beginner',
-    sub: {
-      steps: {
-        n: 'Steps',
-        info: BEG.info,
-        tips: [
-          'Solve one layer at a time and keep the cube in the same orientation.',
-          'Slow and accurate beats fast. Speed comes later.'
-        ],
-        algs: BEG.steps.flatMap(s => [H(s[0]), T(s[1]), ...(s[2] ? B3(s[2]) : [])])
-      }
-    }
-  },
-  cfop: {
-    n: 'CFOP',
-    sub: Object.fromEntries(Object.entries(CFOP).map(([k, v]) => [k, { n: k.toUpperCase(), ...v }]))
-  },
-  zz: {
-    n: 'ZZ',
-    sub: {
-      eo: {
-        n: 'EOLine',
-        info: 'Orient all 12 edges and place the DF and DB edges (the line) in one step. About 6 to 7 moves, planned in inspection. No algs.',
-        tips: [
-          'Quarter turns of F and B flip edges. R, L, U and D turns never flip them.',
-          'Count the "bad" edges (the ones that need F or B to be solved). Fix them with as few F/B turns as possible.',
-          'Place DF and DB while you orient, so the line is built at the same time.',
-          'After EOLine you never use F or B again until the last layer.'
-        ],
-        algs: []
-      },
-      f2l: {
-        n: 'F2L',
-        info: 'Build the left 1x2x3 block, then the right one, using only R, L, U (and D) turns. Edges stay oriented, so there are no F or B moves.',
-        tips: [
-          'Solve the left block first, then the right block.',
-          'Use the same pair triggers as CFOP: R U R\' and R U\' R\'.',
-          'With only 3 faces turning, lookahead is much easier. Use it.',
-          'Finish the last pair on the right without disturbing the left block.'
-        ],
-        algs: []
-      },
-      ll: {
-        n: 'Last layer',
-        info: 'After F2L the edges are already oriented. Use OCLL to orient the corners (7 algs), then PLL. Full ZBLL (493 algs) does it in one step for advanced solvers.',
-        tips: [
-          'OCLL: 7 cases, learn them once.',
-          'PLL: see the CFOP tab. Start with Ua, Ub, H, Z, Aa and Y.'
-        ],
-        algs: [H('OCLL'), ...OC]
-      }
-    }
-  },
-  roux: {
-    n: 'Roux',
-    sub: {
-      fb: {
-        n: 'First block',
-        info: 'Build a 1x2x3 block on the left (DL edge, two left corners and two left edges). Intuitive, about 7 moves.',
-        tips: [
-          'Plan the DL edge first, then the corners, then the middle edges.',
-          'Use only left-side moves so you can look ahead.',
-          'Aim for 7 moves or fewer.'
-        ],
-        algs: []
-      },
-      sb: {
-        n: 'Second block',
-        info: 'Build a second 1x2x3 block on the right using R, r, U and M turns, without breaking the first block.',
-        tips: [
-          'Solve the DR edge, then the right corner and edge together.',
-          'Use r and U moves. M moves can bring pieces in without touching the blocks.',
-          'Look ahead to the CMLL case while you finish.'
-        ],
-        algs: []
-      },
-      cmll: {
-        n: 'CMLL',
-        info: 'Solve the 4 top corners and ignore the edges. Full CMLL is 42 algs. Beginners do it in two looks.',
-        tips: [
-          'Look 1: orient all corners with the 7 algs below (R, U, F only).',
-          'Look 2: permute the corners with the two algs at the bottom. Edges get scrambled, LSE fixes them.',
-          'Later learn the full 42 CMLL algs to do it in one look.'
-        ],
-        algs: [
-          H('Orient corners'),
-          ['Sune', "R U R' U R U2 R'"],
-          ['Anti-Sune', "R U2 R' U' R U' R'"],
-          ['H', "F R U R' U' R U R' U' R U R' U' F'"],
-          ['Pi', "R U2 R2 U' R2 U' R2 U2 R"],
-          ['U', "R2 D R' U2 R D' R' U2 R'"],
-          ['T', "R U R' U' R' F R F'"],
-          ['L', "F R' F' R U R U' R'"],
-          H('Permute corners'),
-          ['Adjacent swap', "R U R' F' R U R' U' R' F R2 U' R'"],
-          ['Diagonal swap', "F R U' R' U' R U R' F' R U R' U' R' F R F'"]
-        ]
-      },
-      lse: {
-        n: 'LSE',
-        info: 'Solve the last 6 edges and the centers with only M and U turns: orient edges, place UL and UR, then finish with M2 and U moves.',
-        tips: [
-          'Step 1: orient the edges (EO) with M and U moves.',
-          'Step 2: put the UL and UR edges on the correct sides.',
-          'Step 3: finish with the 4 algs below.',
-          'Only M and U turns, so it is very ergonomic and fast.'
-        ],
-        algs: [
-          ['H', "M2 U M2 U2 M2 U M2"],
-          ['Z', "M' U M2 U M2 U M' U2 M2"],
-          ['Ua', "M2 U M U2 M' U M2"],
-          ['Ub', "M2 U' M U2 M' U' M2"]
-        ]
-      }
-    }
-  },
-  petrus: {
-    n: 'Petrus',
-    sub: {
-      blk: {
-        n: '2x2x3 block',
-        info: 'Build a 2x2x2 block, then expand it to a 2x2x3. All intuitive, no algs.',
-        tips: [
-          'Start with a 2x2x2 in one corner and plan it in inspection.',
-          'Expand to 2x2x3 by adding a pair next to the block while keeping the block together.',
-          'Most later moves are R, U and L.'
-        ],
-        algs: []
-      },
-      eo: {
-        n: 'Edge orientation',
-        info: 'Orient all remaining edges without breaking the 2x2x3 block. This removes edge-flipping moves from the rest of the solve.',
-        tips: [
-          'Same idea as ZZ: bad edges are the ones that need F or B turns.',
-          'Look for edges you can flip while building the next pair.',
-          'After EO you only need R, U and L turns.'
-        ],
-        algs: []
-      },
-      f2l: {
-        n: 'Finish F2L',
-        info: 'Solve the last F2L pairs with R, U and L moves only, so EO stays intact.',
-        tips: [
-          'Insert the remaining pairs with R U R\' style triggers.',
-          'Keep the block on the left and use R and U.'
-        ],
-        algs: []
-      },
-      ll: {
-        n: 'Last layer',
-        info: 'Edges are oriented, so use OCLL (7 algs) then PLL. Advanced solvers use COLL or ZBLL.',
-        tips: ['Same last-layer algs as ZZ and CFOP.'],
-        algs: [H('OCLL'), ...OC]
-      }
-    }
-  }
-};
+  const adv = {
+    n: 'Advanced',
+    info: 'Ideas for going faster once you know the whole method. You do not need any of this to reach 20 seconds.',
+    tips: [
+      'Add one idea at a time. Each one makes your solves slower for a while before it makes them faster.'
+    ],
+    algs: [
+      H(`In the cross and F2L`),
+      T(`<b>X-cross:</b> solve the cross and one F2L pair at the same time. It saves moves if you can see it during inspection.`),
+      T(`<b>Colour neutrality:</b> start the cross on any colour. Pick the one that gives the best cross and first pair. Hard to learn, but it removes bad scrambles.`),
+      T(`<b>Multi-slotting:</b> solve two pairs with one sequence instead of two separate inserts.`),
+      T(`<b>Pair order:</b> choose the next pair that is easiest and avoid leaving a hard pair for last.`),
+      H(`In the last layer`),
+      T(`<b>Look ahead into PLL:</b> while you do the OLL alg, look at the corners and edges so you know the PLL before OLL ends.`),
+      T(`<b>COLL:</b> when the top edges are already yellow, one alg orients and permutes the corners together. 42 algs.`),
+      T(`<b>OLLCP:</b> one alg orients the last layer and also puts the corners in the right order.`),
+      T(`<b>ZBLL:</b> when the top edges are already yellow, one alg solves the whole last layer. 493 algs. Used by a few top solvers.`),
+      H(`Always check for a skip`),
+      T(`Before every OLL and PLL, check whether the layer is already solved. A skip costs nothing and saves several seconds.`)
+    ]
+  };
+
+  return { cfop: { n: 'CFOP', sub: { ov, cross, f2l, oll, pll, train, adv } } };
+})();

@@ -120,6 +120,7 @@ dialog input, dialog textarea { background: var(--card); color: var(--fg); borde
 dialog .xw { position: sticky; top: 0; height: 0; z-index: 2; text-align: right; }
 dialog .x { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; font-size: 1.4em; line-height: 1; margin: -4px -4px 0 0; }
 dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right: 44px; margin: 0 0 8px; }
+dialog h3 { column-gap: 8px; }
 .dc { padding: 16px; }
 .tabs { margin: 8px 0; flex-wrap: wrap; }
 .tg { font-size: .75em; padding: 1px 6px; border-radius: 6px; background: var(--rd); color: #000; margin-right: 4px; }
@@ -148,6 +149,9 @@ dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right:
 .alg code { text-align: right; white-space: pre-line; font: 13px ui-monospace, Menlo, Consolas, monospace; flex: 1; overflow-wrap: anywhere; }
 .alg input { width: 18px; height: 18px; flex: none; accent-color: var(--ac); }
 .alg:has(input:checked) b { color: var(--rd); }
+.alg { flex-wrap: wrap; row-gap: 2px; }
+.alg .dg { flex: none; width: 56px; height: 56px; }
+.alg .nt { flex-basis: 100%; padding-left: 30px; margin-top: -2px; color: var(--mut); font-size: .86em; line-height: 1.4; }
 .notes { width: 100%; min-height: 240px; resize: vertical; }
 
 /* 10. CUBE PICKER -------------------------------------------- */

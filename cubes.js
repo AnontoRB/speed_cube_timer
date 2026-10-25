@@ -1,12 +1,12 @@
 // Cube types: scrambles + which methods each cube shows. Custom cubes (added by the user) live in S.custom.
 const CUBES = [
   { id: '2', n: '2x2', t: '2', meth: ['lbl2', 'ort'] },
-  { id: '3', n: '3x3', t: '3', meth: ['beg', 'cfop', 'zz', 'roux', 'petrus'] },
+  { id: '3', n: '3x3', t: '3', meth: ['cfop'] },
   { id: '4', n: '4x4', t: '4', meth: ['red4'] },
   { id: '5', n: '5x5', t: '5', meth: ['redn'] },
   { id: '6', n: '6x6', t: '6', meth: ['redn'] },
   { id: '7', n: '7x7', t: '7', meth: ['redn'] },
-  { id: 'oh', n: '3x3 OH', t: '3', meth: ['beg', 'cfop', 'zz', 'roux', 'petrus'] },
+  { id: 'oh', n: '3x3 OH', t: '3', meth: ['cfop'] },
   { id: 'pyra', n: 'Pyraminx', t: 'pyra', meth: ['pyr'] },
   { id: 'skewb', n: 'Skewb', t: 'skewb', meth: ['skb'] },
   { id: 'mega', n: 'Megaminx', t: 'mega', meth: ['mgx'] }

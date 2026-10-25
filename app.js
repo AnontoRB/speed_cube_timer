@@ -81,7 +81,7 @@ try {
 } catch (e) {}
 
 S.known = S.known || {};
-S.view = S.view || { m: 'cfop', t: 'f2l' };
+S.view = S.view || { m: 'cfop', t: 'ov' };
 S.hist = S.hist || {};
 S.rec = S.rec || {};
 
@@ -1483,6 +1483,22 @@ render();
   }
 })();
 
+// Small top view of a last-layer case for the Methods window.
+// 'o' + 9 top and 12 side digits (1 yellow, 0 other, 2 any) for OLL, or 'p' + 12 side letters (F R B L = that face's colour) for PLL.
+function dg(c) {
+  const k = 14, g = 2, w = 5, m = 2, o = w + m, n = 3 * k + 2 * g, t = n + 2 * o;
+  const col = { F: '#34a853', R: '#f28c28', B: '#3b7ddd', L: '#d94a3d', 1: '#f5c400', 0: 'color-mix(in srgb, var(--fg) 28%, var(--bg))', 2: 'color-mix(in srgb, var(--fg) 12%, var(--bg))' };
+  const q = (x, y, a, b, v) => `<rect x="${x}" y="${y}" width="${a}" height="${b}" rx="2" style="fill:${col[v]}"/>`;
+  const s = c.slice(1), top = c[0] === 'o' ? s.slice(0, 9) : '111111111', side = c[0] === 'o' ? s.slice(9) : s;
+  let r = '';
+  for (let i = 0; i < 9; i++) r += q(o + (i % 3) * (k + g), o + Math.floor(i / 3) * (k + g), k, k, top[i]);
+  for (let i = 0; i < 12; i++) {
+    const e = (k + g) * (i % 3);
+    r += i < 3 ? q(o + e, 0, k, w, side[i]) : i < 6 ? q(o + n + m, o + e, w, k, side[i]) : i < 9 ? q(o + e, o + n + m, k, w, side[i]) : q(0, o + e, w, k, side[i]);
+  }
+  return `<svg class="dg" viewBox="0 0 ${t} ${t}" aria-hidden="true">${r}</svg>`;
+}
+
 function methods(m, t) {
   const c = curCube();
   if (!c.meth) {
@@ -1501,7 +1517,7 @@ function methods(m, t) {
   save();
   const A = d.algs.filter(a => a[0] !== '#' && a[0] !== 't'),
         kn = A.filter(a => S.known[a[1]]).length;
-  open(`<h3>Methods · ${esc(c.n)} <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(MS).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${MS[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:2px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}><b>${a[0]}</b><code>${a[1]}</code></label>`).join('')}`);
+  open(`<h3>Methods · ${esc(c.n)} <small class="lead" id="kc">${A.length ? kn + ' / ' + A.length + ' known' : ''}</small></h3><div class="row tabs">${Object.keys(MS).map(k => `<button data-a="mt" data-m="${k}" class="${k === st.m ? 'on' : ''}">${MS[k].n}</button>`).join('')}</div>${ks.length > 1 ? `<div class="row tabs">${ks.map(k => `<button data-a="mt" data-m="${st.m}" data-t="${k}" class="${k === st.t ? 'on' : ''}">${me.sub[k].n}</button>`).join('')}</div>` : ''}<p class="lead">${d.info}</p>${A.length ? '' : '<p class="lead">No algs in this step. It is solved by thinking and practice, so there is nothing to tick.</p>'}${d.tips.length ? `<ul style="padding-left:18px">${d.tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}${d.algs.map(a => a[0] === '#' ? `<h4>${a[1]}</h4>` : a[0] === 't' ? `<p style="margin:6px 0">${a[1]}</p>` : `<label class="alg"><input type="checkbox" data-alg="${a[1]}" ${S.known[a[1]] ? 'checked' : ''}>${a[3] ? dg(a[3]) : ''}<b>${a[0]}</b><code>${a[1]}</code>${a[2] ? `<span class="nt">${a[2]}</span>` : ''}</label>`).join('')}`);
   dl.scrollTop = 0;
 }
 
@@ -1544,7 +1560,7 @@ async function pull() {
     if (j && j.ts > (S.ts || 0)) {
       S = { ...S, ...j, set: { ...S.set, ...j.set } };
       S.known = S.known || {};
-      S.view = S.view || { m: 'cfop', t: 'f2l' };
+      S.view = S.view || { m: 'cfop', t: 'ov' };
       S.hist = S.hist || {};
       undoDel = [];
       migrate();
