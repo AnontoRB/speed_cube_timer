@@ -260,7 +260,7 @@ function render() {
     $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
   }
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  $('#rd').innerHTML = [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> (ao5)${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).join('');
+  $('#rd').innerHTML = [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).join('');
 }
 
 // Rebuild finished-round records from the solves, so deleting/restoring a time keeps them correct.
@@ -275,6 +275,7 @@ function fixRounds(d) {
   for (let n = 1; n < d.round; n++) {
     const rs = d.solves.filter(x => x.r === n);
     if (rs.length === 5) d.rounds.push({ n, res: ao5(arr(rs.map(val))), v: rs.map(fmtS) });
+    else if (rs.length) d.rounds.push({ n, res: NaN, v: rs.map(fmtS), part: rs.length }); // a time was deleted: the round stays, with fewer solves
   }
 }
 
@@ -412,6 +413,7 @@ function migrate() {
   S.rec = S.rec || {};
   S.rec.c = S.rec.c || {};
   AOC = {};
+  for (const id in S.data) if (S.data[id].solves.some(x => x.r)) fixRounds(S.data[id]);
   if (!S.rec.v) { for (const c of allCubes()) repb(c.id); S.rec.v = 1; }
 }
 
@@ -1375,7 +1377,7 @@ function openRound(n) {
         lo = full ? v.indexOf(Math.min(...v)) : -1, hi = full ? v.indexOf(Math.max(...v)) : -1,
         r = d.rounds.find(x => x.n === n), res = r ? r.res : NaN,
         pbR = r && d.rounds.length > 1 && res === minOf(d.rounds.map(x => x.res).filter(isFinite));
-  open(`<h3>Round ${n}${r ? ' · ' + fx(res) + ' (ao5)' + (pbR ? ' ★' : '') : ' · in progress (' + L.length + '/5)'}</h3>` +
+  open(`<h3>Round ${n}${L.length === 5 && r ? ' · ' + fx(res) + ' (ao5)' + (pbR ? ' ★' : '') : ' · ' + L.length + ' of 5 solves' + (r ? ' (no ao5)' : ' (in progress)')}</h3>` +
     `<div class="chips">${L.map((s, k) => {
       const t = fmtP(s), w = full && (k === lo || k === hi) ? '(' + t + ')' : t;
       return `<button data-a="solve" data-i="${I[k]}"><small>${ORD[k]}</small> <b>${w}</b></button>`;

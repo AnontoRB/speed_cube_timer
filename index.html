@@ -1,17 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Meta Information & Viewport Settings -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14161a">
   <meta name="color-scheme" content="dark">
   <title>CubeTimer</title>
+
+  <!-- Main Stylesheet Link -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <!-- ========================================== -->
+  <!-- HEADER SECTION (Logo, Cube Picker & Menu)   -->
+  <!-- ========================================== -->
   <header>
+    <!-- Logo and Current Cube Indicator -->
     <button id="logo" data-a="cubes" title="Choose a cube"><b>CubeTimer</b><span id="ev"></span> &#9662;</button>
+    
+    <!-- Spacer -->
     <span class="sp"></span>
+    
+    <!-- Top Navigation Menu -->
     <nav class="menu" aria-label="Main menu">
       <button id="dt" data-a="cal" title="Calendar"></button>
       <button data-a="meth">Methods</button>
@@ -20,28 +32,66 @@
       <button data-a="set">Settings</button>
     </nav>
   </header>
+
+  <!-- ========================================== -->
+  <!-- MAIN APP WRAPPER                           -->
+  <!-- ========================================== -->
   <div id="wrap">
-<div id="mn">
-  <div id="vb" hidden></div>
-  <div id="scw"><div id="scr"></div><button id="ns" data-a="newscr" title="New scramble" aria-label="New scramble">&#8635;</button></div>
-  <main id="tz">
-    <div id="tm">0.00</div>
-    <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
-  </main>
-  <section id="rs"></section>
-  <section id="st"></section>
-</div>
-<aside id="side">
-  <div class="row">
-    <b id="cnt"></b>
+
+    <!-- Left / Main Column Container -->
+    <div id="mn">
+      
+      <!-- Read-Only View Banner (When viewing past calendar days) -->
+      <div id="vb" hidden></div>
+      
+      <!-- Scramble Bar & New Scramble Button -->
+      <div id="scw">
+        <div id="scr"></div>
+        <button id="ns" data-a="newscr" title="New scramble" aria-label="New scramble">&#8635;</button>
+      </div>
+      
+      <!-- Timer Display Zone (Main interaction area for solving) -->
+      <main id="tz">
+        <div id="tm">0.00</div>
+        <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
+      </main>
+      
+      <!-- Recent Solves (Last 5 Solves) Section -->
+      <section id="rs"></section>
+      
+      <!-- Statistics Section (Best, Mean, Current ao5, Best ao5, Rounds info) -->
+      <section id="st"></section>
+      
+    </div>
+
+    <!-- Right / Side Column Container (Session summary & rounds history) -->
+    <aside id="side">
+      <!-- Session Name / Solve Count Header -->
+      <div class="row">
+        <b id="cnt"></b>
+      </div>
+      
+      <!-- Daily Goal Progress & Weekly Chart -->
+      <div id="goal"></div>
+      
+      <!-- Completed Rounds List History -->
+      <div id="rd"></div>
+    </aside>
+
   </div>
-  <div id="goal"></div>
-  <div id="rd"></div>
-</aside>
-</div>
+
+  <!-- ========================================== -->
+  <!-- MODAL DIALOG CONTAINER                     -->
+  <!-- ========================================== -->
+  <!-- Used dynamically by JavaScript for settings, calendar, records, methods, and rules popups -->
   <dialog id="dl"></dialog>
+
+  <!-- ========================================== -->
+  <!-- EXTERNAL JAVASCRIPT SCRIPTS                -->
+  <!-- ========================================== -->
   <script src="algs.js" defer></script>
   <script src="cubes.js" defer></script>
   <script src="app.js" defer></script>
+
 </body>
 </html>
