@@ -138,7 +138,7 @@ function rollover() {
     if (moved) S.data = {};
   }
   S.day = today;
-  if (moved) save();
+  if (moved) { undoDel = []; save(); }
   return moved;
 }
 
@@ -278,16 +278,24 @@ function fixRounds(d) {
   }
 }
 
-let undoDel = null;
+let undoDel = []; // deleted times, newest last, so every delete can be undone in turn
+
+// Re-checks everything that is worked out from the solves, after a time is deleted, restored or changed:
+// rounds, PB stars and the stored records.
+function refix() {
+  fixRounds(D());
+  repb(S.cur);
+  repRec(S.cur);
+}
 
 function delSolve(i) {
   if (view) return;
   const d = D(), s = d.solves[i];
   if (!s) return;
   d.solves.splice(i, 1);
-  fixRounds(d);
-  repb(S.cur);
-  undoDel = { ev: S.cur, i, s };
+  undoDel.push({ ev: S.cur, i, s });
+  if (undoDel.length > 50) undoDel.shift();
+  refix();
   save();
   render();
   const l = d.solves[d.solves.length - 1];
@@ -296,18 +304,16 @@ function delSolve(i) {
 }
 
 function undoSolve() {
-  if (!undoDel) return;
-  const u = undoDel;
-  undoDel = null;
+  const u = undoDel.pop();
+  if (!u) return;
   S.cur = u.ev;
   const d = D();
   d.solves.splice(Math.min(u.i, d.solves.length), 0, u.s);
-  fixRounds(d);
-  repb(S.cur);
+  refix();
   save();
   render();
   tm.textContent = fmtS(u.s);
-  $('#msg').textContent = 'Time restored';
+  $('#msg').innerHTML = 'Time restored' + (undoDel.length ? ' · <button data-a="undo">Undo another</button>' : '');
 }
 
 const focusUI = () => document.body.classList.toggle('run', S.set.focus && mode !== 'idle');
@@ -369,6 +375,37 @@ function repb(id) {
     if (x < b) b = x;
     n++;
   }
+}
+
+// Stored records (best run of fast solves, best day streak) are rebuilt from the solves that are left,
+// so a deleted time cannot keep a record alive. They can only go down here, never up.
+function repRec(id) {
+  const rc = recOf(id), pv = [], fin = [];
+  let best = 0, pb = Infinity;
+  for (const s of allSolves(id)) {
+    const v = val(s), ok = isFinite(v), recent = fin.slice(-12), base = recent.length >= 5 ? mn(recent) : 0;
+    // same cases as react(): the solve is not a DNF and not a new PB
+    if (ok && base && !(fin.length >= 5 && v < pb)) {
+      const seq = pv.slice(-20).concat(v);
+      let f = 0;
+      for (let i = seq.length - 1; i >= 0 && seq[i] < base; i--) f++;
+      if (f >= 3 && f > best) best = f;
+    }
+    pv.push(v);
+    if (ok) { fin.push(v); if (v < pb) pb = v; }
+  }
+  rc.streak = Math.min(rc.streak || 0, best);
+  // longest run of days in a row with at least one solve (any cube)
+  const have = new Set(Object.keys(S.hist || {}).filter(k => Object.values(S.hist[k]).some(x => x.solves.length)));
+  if (todayCount()) have.add(S.day || dkey(Date.now()));
+  let run = 0, top = 0;
+  for (const k of [...have].sort()) {
+    const p = new Date(k + 'T00:00:00');
+    p.setDate(p.getDate() - 1);
+    run = have.has(dkey(p)) ? run + 1 : 1;
+    if (run > top) top = run;
+  }
+  S.rec.days = Math.min(S.rec.days || 0, top);
 }
 
 function migrate() {
@@ -944,7 +981,7 @@ ${P.subs.length && isFinite(best) ? `<h4>Sub-X targets</h4><div class="chips">${
 }
 
 function add(t, p, why) {
-  undoDel = null;
+  undoDel = [];
   rollover();
   const e = D(), s = { t, p, s: scr, d: Date.now(), r: S.set.auto ? e.round : 0 }, x = react(s, why), off = S.set.tone === 'off';
   e.solves.push(s);
@@ -1072,16 +1109,15 @@ document.addEventListener('keydown', e => {
     focusUI();
     return;
   }
-  if (mode === 'idle' && !view && D().solves.length && !e.ctrlKey && !e.metaKey) {
+  if (mode === 'idle' && !view && !e.repeat && D().solves.length && !e.ctrlKey && !e.metaKey) {
     const L = D().solves, s = L[L.length - 1];
+    if (e.key === 'Backspace' || e.key === 'Delete') { delSolve(L.length - 1); return; }
     let h = 1;
-    if (e.key === 'Backspace' || e.key === 'Delete') L.pop();
-    else if (e.key === '2') s.p = s.p === 2 ? 0 : 2;
+    if (e.key === '2') s.p = s.p === 2 ? 0 : 2;
     else if (e.key === 'd' || e.key === 'D') s.p = s.p === 'D' ? 0 : 'D';
     else h = 0;
     if (h) {
-      fixRounds(D());
-      repb(S.cur);
+      refix();
       save();
       render();
       const l = L[L.length - 1];
@@ -1232,14 +1268,14 @@ dl.addEventListener('click', e => {
     i.accept = '.json';
     i.onchange = () => i.files[0].text().then(t => { try { S = JSON.parse(t); save(); location.reload(); } catch (x) { alert('Invalid file'); } });
     i.click();
-  } else if (a === 'p2' || a === 'dnf') { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; repb(S.cur); save(); render(); dl.close(); }
+  } else if ((a === 'p2' || a === 'dnf') && s) { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; refix(); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes2') {
     // final step: wipe every solve, round, past day and record on every cube
     S.data = {};
     S.hist = {};
     S.rec = { c: {}, v: 1 };
-    undoDel = null;
+    undoDel = [];
     AOC = {};
     save(); newScr(); tm.textContent = '0.00'; $('#msg').textContent = 'Everything was deleted.'; render(); dl.close();
   }
@@ -1355,6 +1391,7 @@ async function pull() {
       S.known = S.known || {};
       S.view = S.view || { m: 'cfop', t: 'f2l' };
       S.hist = S.hist || {};
+      undoDel = [];
       migrate();
       rollover();
       try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
