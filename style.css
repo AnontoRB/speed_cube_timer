@@ -635,3 +635,10 @@ header .menu > button[data-a=progress] { display: none; }
 @media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
   header .menu > button[data-a=progress] { display: flex; }
 }
+
+/* Round summary in the message under the timer: stays short so the big time is never pushed out of view. */
+#msg { max-height: 30vh; overflow-y: auto; }
+#msg .rsum .chips { justify-content: center; }
+#msg .rsd { margin-top: 4px; }
+#msg .rsd summary { cursor: pointer; color: var(--mut); }
+#msg .rsd .dtl { text-align: left; font-size: .9em; }

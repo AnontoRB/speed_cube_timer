@@ -7,6 +7,7 @@ const CUBES = [
   { id: '6', n: '6x6', t: '6', meth: ['yau6'] },
   { id: '7', n: '7x7', t: '7', meth: ['yau7'] },
   { id: 'oh', n: '3x3 OH', t: '3', meth: ['ohm'] },
+  { id: 'bld', n: '3x3 BLD', t: '3', meth: ['bld'] },
   { id: 'pyra', n: 'Pyraminx', t: 'pyra', meth: ['pyl4e'] },
   { id: 'skewb', n: 'Skewb', t: 'skewb', meth: ['ns'] },
   { id: 'mega', n: 'Megaminx', t: 'mega', meth: ['mgll'] }
@@ -121,6 +122,19 @@ const MX = {
         ['#', 'Permute'], ['Ua', "R U' R U R U R U' R' U' R2"], ['Ub', "R2 U R U R' U' R' U' R' U R'"], ['H', "R2 U2 R U2 R2 U2 R2 U2 R U2 R2"],
         ['Aa', "R' F R' B2 R F' R' B2 R2"], ['Ab', "R B' R F2 R' B R F2 R2"], ['T', "R U R' U' R' F R2 U' R' U' R U R' F'"]
       ])
+    }
+  },
+
+  // ---- 3x3 blindfolded ----
+  bld: {
+    n: 'Blindfolded (BLD)',
+    sub: {
+      ov: X('Overview', 'Look at the scrambled cube, memorise it, put the blindfold on, then solve it without seeing. The timer includes memo and solving. A single mistake is a DNF.', ['1. Inspect and memorise (no time limit on the look, but the timer runs)', '2. Blindfold on, execute the solve', 'Start with Old Pochmann. Move on to M2/OP or 3-style later.', 'Accuracy first. A slow success beats a fast DNF.']),
+      me: X('Memo', 'Turn each pair of pieces into a letter pair, then into a word, image or story. Edges and corners are memorised separately.', ['Pick a lettering scheme and keep it fixed.', 'Make one vivid image for each letter pair.', 'Use a fixed path (a place you know) for the images.', 'Say the memo again once before the blindfold goes on.']),
+      op: X('Old Pochmann', 'The beginner method. Use one buffer piece and swap pieces into place one by one. Edges use the T-perm, corners use the Y-perm, with setup moves before and after.', ['Edges first, then corners.', 'Cycle breaks and parity are covered in most OP guides.', 'Do the setup moves, the alg, then undo the setup moves.', 'Check every alg on your own cube before you learn it.'], [
+        ['#', 'Swap algs'], ['T-perm (edges)', "R U R' U' R' F R2 U' R' U' R U R' F'"], ['Y-perm (corners)', "F R U' R' U' R U R' F' R U R' U' R' F R F'"]
+      ]),
+      pr: X('Practice', 'Build it up in small parts.', ['Do edges only, then corners only, then both.', 'Practise memo with the cube in sight first.', 'Count successes, not just times.', 'Keep a light cloth or a mask for the blindfold.'])
     }
   },
 

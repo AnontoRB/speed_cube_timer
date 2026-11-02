@@ -332,7 +332,8 @@ const hist = id => Object.keys(S.hist || {}).sort().map(k => S.hist[k][id]).filt
       pastRounds = id => hist(id).flatMap(x => x.rounds),
       allSolves = id => pastSolves(id).concat((S.data[id] || { solves: [] }).solves),
       sum = o => Object.values(o).reduce((a, e) => a + e.solves.length, 0),
-      todayCount = () => sum(S.data),
+      todayCount = (id = S.cur) => (S.data[id] || { solves: [] }).solves.length,
+      cubeDay = (key, id = S.cur) => ((dayData(key) || {})[id] || { solves: [] }).solves.length,
       buzz = ms => { if (S.set.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} };
 
 // small helpers
@@ -403,9 +404,9 @@ function repRec(id) {
     if (ok) { fin.push(v); if (v < pb) pb = v; }
   }
   rc.streak = Math.min(rc.streak || 0, best);
-  // longest run of days in a row with at least one solve (any cube)
-  const have = new Set(Object.keys(S.hist || {}).filter(k => Object.values(S.hist[k]).some(x => x.solves.length)));
-  if (todayCount()) have.add(S.day || dkey(Date.now()));
+  // longest run of days in a row with at least one solve on THIS cube
+  const have = new Set(Object.keys(S.hist || {}).filter(k => (S.hist[k][id] || { solves: [] }).solves.length));
+  if (todayCount(id)) have.add(S.day || dkey(Date.now()));
   let run = 0, top = 0;
   for (const k of [...have].sort()) {
     const p = new Date(k + 'T00:00:00');
@@ -413,7 +414,7 @@ function repRec(id) {
     run = have.has(dkey(p)) ? run + 1 : 1;
     if (run > top) top = run;
   }
-  S.rec.days = Math.min(S.rec.days || 0, top);
+  rc.days = rc.days == null ? top : Math.min(rc.days, top);
 }
 
 function migrate() {
@@ -440,6 +441,7 @@ const MILES = [1, 10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500
         '2': { subs: [15, 10, 8, 6, 5, 4, 3, 2.5, 2, 1.5, 1], hi: ['Tiny cube, big speed!', "Let's twist!"], tip: 'On a 2x2 a slow solve usually means an awkward last layer. Spend a little more of your inspection planning the first layer.' },
         '3': { subs: [60, 45, 30, 25, 20, 18, 15, 13, 12, 11, 10, 9, 8, 7, 6, 5], hi: ['Time to turn some layers!', "Let's go!"], tip: 'A slow 3x3 solve is often one long pause. Next time notice where you stopped to think; that is the step to practice.' },
         oh: { subs: [90, 60, 45, 40, 35, 30, 25, 20, 18, 15, 12, 10], hi: ['One hand, full focus!', "Let's go, lefty or righty!"], tip: 'One-handed solves swing more than two-handed ones, mostly from regrips. Smooth, slow turns usually beat fast, jerky ones.' },
+        bld: { subs: [600, 420, 300, 240, 180, 150, 120, 90, 75, 60, 50, 40, 30], hi: ['Memorise, breathe, solve. Blindfold on!', 'Calm mind, clear memo!'], tip: 'A slow blindfolded solve is usually a long memo. A clear story or picture for each pair of pieces helps more than rushing.' },
         '4': { subs: [240, 180, 150, 120, 100, 90, 80, 70, 60, 50, 45, 40, 35, 30], hi: ['Centers, edges, then the fun part!'], tip: 'On a 4x4 a slow solve is often a long edge-pairing stage or a parity case. Both vary a lot, so do not worry.' },
         '5': { subs: [360, 300, 240, 180, 150, 120, 100, 90, 80, 70, 60], hi: ['Big cube, big patience. Go!'], tip: 'Big cubes have many more places to lose time, so times swing more. Keep your turns smooth and your pairing steady.' },
         '6': { subs: [600, 480, 420, 360, 300, 240, 210, 180, 150, 120], hi: ['Big cube, big patience. Go!'], tip: 'A 6x6 solve has a lot of steps, so one slow stage is normal. Smooth turning matters more than speed.' },
@@ -448,7 +450,7 @@ const MILES = [1, 10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500
         skewb: { subs: [60, 40, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3], hi: ['Skewb time, short and sharp!'], tip: 'Skewb solves are short, so one bad case stands out. Practice the rare cases to even it out.' },
         mega: { subs: [600, 480, 360, 300, 240, 180, 150, 120, 100, 90, 80, 70, 60, 50, 45, 40, 30], hi: ['Twelve faces, one calm mind!'], tip: 'Megaminx has many moves, so small pauses add up. Aim for a smooth, steady rhythm.' }
       },
-      profile = c => ({ ...BASE, ...(PROF[c.id === 'oh' ? 'oh' : c.t] || {}) });
+      profile = c => ({ ...BASE, ...(PROF[c.id === 'oh' || c.id === 'bld' ? c.id : c.t] || {}) });
 
 // ---- Message pools. {t} time, {cn} cube, {gap} seconds gained, {old} old record, {pct} percent, {dif} seconds off average, {avg} average, {off} seconds off PB, {best} PB ----
 const PBL = {
@@ -866,14 +868,14 @@ function react(s, why) {
   // ---- opening line: greeting on the first solve of the day, a note on the first solve of each cube ----
   if (dayFirst) {
     const hr = new Date().getHours(), dsn = streak() + 1, y = new Date(),
-          ysum = (y.setDate(y.getDate() - 1), sum(dayData(dkey(y)))),
-          last = Object.keys(S.hist).filter(k => k < S.day && Object.values(S.hist[k]).some(z => z.solves.length)).sort().pop(),
-          away = last ? Math.round((new Date(S.day) - new Date(last)) / 864e5) : 0, rc = S.rec.days || 0;
+          ysum = (y.setDate(y.getDate() - 1), cubeDay(dkey(y))),
+          last = Object.keys(S.hist).filter(k => k < S.day && (S.hist[k][S.cur] || { solves: [] }).solves.length).sort().pop(),
+          away = last ? Math.round((new Date(S.day) - new Date(last)) / 864e5) : 0, rc = recOf(S.cur).days || 0;
     x.pre.push(hr < 5 ? 'Burning the midnight oil? 🌙' : hr < 12 ? 'Good morning! ☀️' : hr < 17 ? 'Good afternoon! 🌤️' : hr < 22 ? 'Good evening! 🌆' : 'Late-night session! 🌙', pk(P.hi));
     if (away >= 3) x.pre.splice(1, 0, `Welcome back, it has been ${away} days`);
     if (dsn >= 2) x.pre.push(`🔥 Day ${dsn} of your streak`);
     if (ysum) x.pre.push(`Yesterday: ${plural(ysum, 'solve')}`);
-    if (dsn > rc) S.rec.days = dsn;
+    if (dsn > rc) recOf(S.cur).days = dsn;
     if (DSM.includes(dsn)) {
       x.events.push({ k: 'milestone', text: `🔥 ${dsn}-day streak! ${dsn} days in a row of cubing.${dsn > rc && rc >= 2 ? ' That is your longest streak yet!' : ''}` });
       bump(x, 'milestone');
@@ -916,9 +918,9 @@ function rx(x) {
   return h + '</div>';
 }
 
-const streak = () => {
-  const days = new Set(Object.keys(S.hist || {}).filter(k => Object.values(S.hist[k]).some(x => x.solves.length)));
-  if (todayCount()) days.add(S.day || dkey(Date.now()));
+const streak = (id = S.cur) => {
+  const days = new Set(Object.keys(S.hist || {}).filter(k => (S.hist[k][id] || { solves: [] }).solves.length));
+  if (todayCount(id)) days.add(S.day || dkey(Date.now()));
   let n = 0;
   const d = new Date();
   if (!days.has(dkey(d))) d.setDate(d.getDate() - 1);
@@ -928,7 +930,7 @@ const streak = () => {
 
 // Small summary in the top right corner on phones and tablets: solves today + daily goal bar.
 function miniPanel(d) {
-  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), gc = sum(dayData(key)), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
+  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), gc = cubeDay(key), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
   return `<b>${d.solves.length} solves${view ? '' : ' today'}</b>` +
     (gl ? `<div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} · ${pc}%${gc >= gl ? ' ✓' : ''}</small>` : '') +
     `<div class="mx">${weekHtml(key)}${tilesHtml()}</div>`;
@@ -936,7 +938,7 @@ function miniPanel(d) {
 
 // Last 7 days as small bars (goal reached = green).
 function weekHtml(key) {
-  const gl = S.set.goal, cnt = k => sum(dayData(k)), days = [], b0 = new Date(key + 'T00:00:00');
+  const gl = S.set.goal, cnt = k => cubeDay(k), days = [], b0 = new Date(key + 'T00:00:00');
   for (let i = 6; i >= 0; i--) {
     const d = new Date(b0);
     d.setDate(d.getDate() - i);
@@ -958,8 +960,8 @@ function tilesHtml() {
 
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
 function goalPanel() {
-  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => sum(dayData(k)),
-        gc = cnt(key), sk = view ? 0 : streak(), bestSk = Math.max(S.rec ? S.rec.days || 0 : 0, sk), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
+  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => cubeDay(k),
+        gc = cnt(key), sk = view ? 0 : streak(), bestSk = Math.max(recOf(S.cur).days || 0, sk), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
   let h = '';
   if (gl) h += `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
   if (sk > 1) h += `<div class="sk">🔥 ${sk}-day streak${bestSk > sk ? ` <small>(best ${bestSk})</small>` : ''}</div>`;
@@ -994,12 +996,12 @@ function records() {
   if (!L.length) { open(`<h3>Records · ${esc(c.n)}</h3><p class="lead">No solves yet on this cube. Records appear as soon as you start solving.</p>`); return; }
   const best = minOf(fin), bs = L.find(s => val(s) === best), tot = L.reduce((a, s) => a + (s.t || 0), 0), dn = L.filter(s => s.p === 'D').length,
         perDay = Object.keys(S.hist).sort().map(k => (S.hist[k][c.id] || { solves: [] }).solves.length).concat((S.data[c.id] || { solves: [] }).solves.length).filter(Boolean),
-        sk = streak(), prog = fin.length >= 50 ? mn(fin.slice(0, 25)) - mn(fin.slice(-25)) : NaN, nxt = P.subs.find(x => best >= x * 1000);
+        sk = streak(c.id), prog = fin.length >= 50 ? mn(fin.slice(0, 25)) - mn(fin.slice(-25)) : NaN, nxt = P.subs.find(x => best >= x * 1000);
   let b = Infinity;
   const pbs = [];
   for (const s of L) { const q = val(s); if (!isFinite(q)) continue; if (s.pb) pbs.push({ s, g: b - q }); if (q < b) b = q; }
   open(`<h3>Records · ${esc(c.n)}</h3>
-<div class="dtiles">${tile('Best single', fm(best), dt(bs))}${tile('Best ao5', fm(rollMin(v, 5)))}${tile('Best ao12', fm(rollMin(v, 12)))}${tile('Best ao100', fm(rollMin(v, 100)))}${tile('Mean', fm(mn(fin)))}${tile('Solves', L.length, dn ? plural(dn, 'DNF') : '')}${tile('Solving time', dur(tot))}${tile('Days cubed', perDay.length, 'best day: ' + Math.max(0, ...perDay))}${tile('PBs ★', L.filter(s => s.pb).length)}${tile('Best streak', (recOf(c.id).streak || 0) + ' fast', 'in a row under average')}${tile('Day streak', sk, 'best ' + Math.max(S.rec.days || 0, sk))}${isNaN(prog) ? '' : tile('Progress', (prog >= 0 ? '−' : '+') + ds(prog) + 's', 'first 25 vs latest 25')}</div>
+<div class="dtiles">${tile('Best single', fm(best), dt(bs))}${tile('Best ao5', fm(rollMin(v, 5)))}${tile('Best ao12', fm(rollMin(v, 12)))}${tile('Best ao100', fm(rollMin(v, 100)))}${tile('Mean', fm(mn(fin)))}${tile('Solves', L.length, dn ? plural(dn, 'DNF') : '')}${tile('Solving time', dur(tot))}${tile('Days cubed', perDay.length, 'best day: ' + Math.max(0, ...perDay))}${tile('PBs ★', L.filter(s => s.pb).length)}${tile('Best streak', (recOf(c.id).streak || 0) + ' fast', 'in a row under average')}${tile('Day streak', sk, 'best ' + Math.max(recOf(c.id).days || 0, sk))}${isNaN(prog) ? '' : tile('Progress', (prog >= 0 ? '−' : '+') + ds(prog) + 's', 'first 25 vs latest 25')}</div>
 ${P.subs.length && isFinite(best) ? `<h4>Sub-X targets</h4><div class="chips">${P.subs.map(x => best < x * 1000 ? `<span class="ok">sub-${x} ✓</span>` : x === nxt ? `<span class="nx">🎯 sub-${x}: ${ds(Math.max(best - x * 1000, 10))}s to go</span>` : `<span class="lk">sub-${x}</span>`).join('')}</div>` : ''}
 <h4>Latest personal bests</h4>${pbs.length ? pbs.slice(-10).reverse().map(p => `<div class="dsum"><b>★ ${fmtS(p.s)}</b> <span class="dtl">${dt(p.s)}${isFinite(p.g) ? ` · ${ds(p.g)}s faster than the previous best` : ''}</span></div>`).join('') : '<p class="lead">No personal bests yet. They start counting after 5 solves.</p>'}`);
 }
@@ -1029,6 +1031,11 @@ function add(t, p, why) {
         if (isFinite(ob) && res > ob && prv !== ob) tx += ` ${ds(res - ob)}s off your best ao5 (${fx(ob)}).`;
       }
       x.events.push({ k: nb ? 'pb' : 'round', text: tx + ` Round ${rn + 1} starts now.` });
+      // the same details as the round popup: the five times (best and worst in brackets) and their scrambles
+      const lo = vs.indexOf(Math.min(...vs)), hi = vs.indexOf(Math.max(...vs)), fullDet = S.set.det !== 'short';
+      x.events.push({ k: 'rsum', text: `<div class="chips">${rs.map((y, k) => { const t = fmtP(y); return `<span><small>${ORD[k]}</small> <b>${k === lo || k === hi ? '(' + t + ')' : t}</b></span>`; }).join('')}</div>` +
+        (fullDet ? `<details class="rsd"><summary>Scrambles</summary><div class="dtl">Best and worst are dropped (in brackets).</div>` + rs.map((y, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-wrap">${esc(y.s)}</span></div>`).join('') + `</details>` : '') +
+        `<button data-a="round" data-n="${rn}" style="margin-top:6px">Open round ${rn}</button>` });
       e.round++;
     }
   }
@@ -1185,6 +1192,7 @@ const RULES = [
   ['a', 'Manual +2 and DNF buttons on every solve for judge penalties.'],
   ['a', 'Ao5: best and worst dropped, two or more DNFs = DNF. Times are truncated, not rounded.'],
   ['h', '3x3 OH: solve and inspect with one hand only.'],
+  ['h', '3x3 BLD: the timer covers memo and solve. Put the blindfold on before you solve; any mistake is a DNF (mark it with D).'],
   ['h', 'Scrambles are random-move, not the official random-state scrambler.']
 ];
 
@@ -1244,9 +1252,9 @@ function rulesInfo() {
 
 function cubePicker() {
   const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${esc(c.n)}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
-        all = allCubes(), std = ['2', '3', '4', '5', '6', '7', 'oh'], oth = ['pyra', 'skewb', 'mega'],
+        all = allCubes(), std = ['2', '3', '4', '5', '6', '7'], var3 = ['oh', 'bld'], oth = ['pyra', 'skewb', 'mega'],
         grp = (t, f) => { const l = all.filter(f); return l.length ? `<h4>${t}</h4><div class="cubes">${l.map(one).join('')}</div>` : ''; };
-  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
+  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('One-handed and blindfolded', c => var3.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
 }
 
 function wallPrev() {
@@ -1454,7 +1462,8 @@ function openRound(n) {
         lo = full ? v.indexOf(Math.min(...v)) : -1, hi = full ? v.indexOf(Math.max(...v)) : -1,
         r = d.rounds.find(x => x.n === n), res = r ? r.res : NaN,
         pbR = r && d.rounds.length > 1 && res === minOf(d.rounds.map(x => x.res).filter(isFinite));
-  open(`<h3>Round ${n}${L.length === 5 && r ? ' · ' + fx(res) + ' (ao5)' + (pbR ? ' ★' : '') : ' · ' + L.length + ' of 5 solves' + (r ? ' (no ao5)' : ' (in progress)')}</h3>` +
+  const dn = L[L.length - 1].d, tdone = dn ? new Date(dn).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+  open(`<h3>Round ${n}${L.length === 5 && r ? ' · ' + fx(res) + ' (ao5)' + (pbR ? ' ★' : '') : ' · ' + L.length + ' of 5 solves' + (r ? ' (no ao5)' : ' (in progress)')}${tdone ? ` <span style="font-weight:400;color:var(--mut);font-size:.8em">· ${L.length === 5 ? 'done at' : 'last solve at'} ${tdone}</span>` : ''}</h3>` +
     `<div class="chips">${L.map((s, k) => {
       const t = fmtP(s), w = full && (k === lo || k === hi) ? '(' + t + ')' : t;
       return `<button data-a="solve" data-i="${I[k]}"><small>${ORD[k]}</small> <b>${w}</b></button>`;
