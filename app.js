@@ -1061,6 +1061,23 @@ function add(t, p, why) {
   render();
 }
 
+// Cancel button shown only during the 15 s inspection (Escape does the same on a keyboard).
+const ib = document.createElement('button');
+ib.id = 'icancel'; ib.type = 'button'; ib.tabIndex = -1; ib.hidden = true; ib.textContent = 'Cancel inspection';
+$('#msg').after(ib);
+function cancelInsp() {
+  if (mode !== 'insp') return;
+  mode = 'idle';
+  holding = ready = false;
+  clearTimeout(ht);
+  ib.hidden = true;
+  tm.className = '';
+  tm.textContent = '0.00';
+  $('#msg').textContent = 'Inspection cancelled. Hold SPACE or touch to start again.';
+  focusUI();
+}
+ib.addEventListener('click', cancelInsp);
+
 function tick() {
   focusUI();
   if (mode === 'run') {
@@ -1071,6 +1088,7 @@ function tick() {
     if (e >= 12 && !b12) { b12 = 1; beep(900); }
     if (insp(e) < 0) {
       mode = 'idle';
+      ib.hidden = true;
       tm.className = '';
       $('#msg').textContent = 'Inspection over 17 s: DNF';
       add(0, 'D', 'insp');
@@ -1115,12 +1133,14 @@ function up() {
     i0 = performance.now();
     b8 = b12 = 0;
     pen = 0;
+    ib.hidden = false;
     tm.className = 'insp';
     $('#msg').textContent = 'Inspection: hold and release to start';
     tick();
   } else if (ready) {
     pen = mode === 'insp' ? Math.max(0, insp((performance.now() - i0) / 1000)) : 0;
     mode = 'run';
+    ib.hidden = true;
     t0 = performance.now();
     tm.className = '';
     $('#msg').textContent = pen ? '+2 penalty (inspection over 15 s)' : '';
@@ -1131,30 +1151,80 @@ function up() {
   ready = false;
 }
 
+// ---- Keyboard shortcuts (can be changed in Settings) ----
+const KEYACT = [
+  ['cancel', 'Cancel inspection', 'Shift+C'],
+  ['del', 'Delete last solve', 'Shift+D'],
+  ['dnf', 'DNF on/off for last solve', 'D'],
+  ['p2', '+2 on/off for last solve', 'Shift+2'],
+  ['undo', 'Undo delete', 'Shift+Z'],
+  ['scr', 'New scramble', 'N'],
+  ['cubes', 'Choose a cube', 'K'],
+  ['meth', 'Methods', 'M'],
+  ['prog', 'Progress graph', 'P'],
+  ['rec', 'Records', 'R'],
+  ['cal', 'Calendar', 'C'],
+  ['rules', 'Rules and info', 'I'],
+  ['set', 'Settings', 'S']
+];
+const KEYOPEN = { cubes: 'cubes', meth: 'meth', prog: 'progress', rec: 'rec', cal: 'cal', rules: 'rules', set: 'set' };
+const keyOf = a => ((S.set.keys || {})[a]) ?? KEYACT.find(x => x[0] === a)[2],
+      actOf = cb => (KEYACT.find(x => keyOf(x[0]) === cb) || [])[0];
+// Same letter on any keyboard layout: built from the physical key (e.code).
+function comboOf(e) {
+  const c = e.code || '';
+  if (!c || /^(Shift|Control|Alt|Meta|OS)(Left|Right)?$/.test(c)) return '';
+  const k = /^Key[A-Z]$/.test(c) ? c.slice(3) : /^(Digit|Numpad)\d$/.test(c) ? c.slice(-1) : c;
+  return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + k;
+}
+const hint = () => `Hold SPACE or touch to start · ${keyOf('del')} deletes last · ${keyOf('p2')} = +2 · ${keyOf('dnf')} = DNF`;
+const keysHelp = () => `${keyOf('del')} (or Backspace/Delete) removes the last solve, ${keyOf('undo')} undoes a delete, ${keyOf('p2')} toggles +2, ${keyOf('dnf')} toggles DNF, ${keyOf('cancel')} cancels the inspection, ${keyOf('scr')} gives a new scramble. ${KEYACT.filter(x => KEYOPEN[x[0]]).map(x => keyOf(x[0]) + ' ' + x[1]).join(', ')}. You can change all of these in Settings.`;
+function keyLabels() {
+  ib.textContent = 'Cancel inspection (' + keyOf('cancel') + ')';
+  const m = $('#msg');
+  if (m && /^Hold SPACE/.test(m.textContent)) m.textContent = hint();
+  document.querySelectorAll('[data-a="keyset"]').forEach(b => { b.textContent = keyOf(b.dataset.act) || 'none'; });
+}
+
+// Runs a shortcut. Returns true when it did something.
+function runKey(a) {
+  const L = D().solves, s = L[L.length - 1];
+  const edit = f => { if (view || !s) return false; f(); refix(); save(); render(); const l = L[L.length - 1]; tm.textContent = l ? fmtS(l) : '0.00'; return true; };
+  if (a === 'del') { if (view || !s) return false; delSolve(L.length - 1); return true; }
+  if (a === 'dnf') return edit(() => { s.p = s.p === 'D' ? 0 : 'D'; });
+  if (a === 'p2') return edit(() => { s.p = s.p === 2 ? 0 : 2; });
+  if (a === 'undo') { if (view || !undoDel.length) return false; undoSolve(); return true; }
+  if (a === 'scr') { if (view) return false; fresh(); return true; }
+  if (KEYOPEN[a]) { const b = document.querySelector(`[data-a="${KEYOPEN[a]}"]`); if (b) { b.click(); return true; } }
+  return false;
+}
+
+// Choosing a new key in Settings: click the button, then press the keys. Esc cancels.
+let capAct = null;
+function endCap() { capAct = null; keyLabels(); }
+document.addEventListener('keydown', e => {
+  if (!capAct) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.code === 'Escape') { endCap(); return; }
+  const cb = comboOf(e);
+  if (!cb) return;                                   // only a modifier so far
+  if (['Space', 'Tab', 'Enter', 'Shift+Space'].includes(cb)) { alert('Space, Tab and Enter cannot be used.'); return; }
+  const other = actOf(cb);
+  S.set.keys = S.set.keys || {};
+  if (other && other !== capAct) S.set.keys[other] = keyOf(capAct);   // swap, so no key does two things
+  S.set.keys[capAct] = cb;
+  save(); endCap();
+}, true);
+
 document.addEventListener('keydown', e => {
   if (dl.open) return;
-  if (e.code === 'Escape' && mode === 'insp') {
-    mode = 'idle';
-    tm.className = '';
-    tm.textContent = '0.00';
-    focusUI();
-    return;
-  }
-  if (mode === 'idle' && !view && !e.repeat && D().solves.length && !e.ctrlKey && !e.metaKey) {
-    const L = D().solves, s = L[L.length - 1];
-    if (e.key === 'Backspace' || e.key === 'Delete') { delSolve(L.length - 1); return; }
-    let h = 1;
-    if (e.key === '2') s.p = s.p === 2 ? 0 : 2;
-    else if (e.key === 'd' || e.key === 'D') s.p = s.p === 'D' ? 0 : 'D';
-    else h = 0;
-    if (h) {
-      refix();
-      save();
-      render();
-      const l = L[L.length - 1];
-      tm.textContent = l ? fmtS(l) : '0.00';
-      return;
-    }
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+  const act = actOf(comboOf(e));
+  if (mode === 'insp' && (act === 'cancel' || e.code === 'Escape')) { e.preventDefault(); cancelInsp(); return; }
+  if (mode === 'idle' && !e.repeat) {
+    let a = act;
+    if (!a && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) a = 'del';
+    if (a && runKey(a)) { e.preventDefault(); return; }
   }
   if (e.code === 'Space') {
     e.preventDefault();
@@ -1237,13 +1307,13 @@ const INFO = [
   ]],
   ['Keys and controls', [
     ['Start', 'Hold SPACE (or touch the timer area) until it turns green, then release. Any key or tap stops the timer.'],
-    ['After a solve', 'Backspace or Delete removes the last solve (Undo is shown). 2 toggles +2. D toggles DNF.'],
+    ['Shortcuts', '%KEYS%'],
     ['Click a solve', 'Click a 1st to 5th solve box to see its scramble and time, add +2 or DNF, or delete it.']
   ]]
 ];
 
 function rulesInfo() {
-  const sec = ([t, items]) => `<section class="dcard sg"><h4>${t}</h4>${items.map(([k, v]) => `<p style="margin:8px 0"><b>${k}</b><br>${v}</p>`).join('')}</section>`;
+  const sec = ([t, items]) => `<section class="dcard sg"><h4>${t}</h4>${items.map(([k, v]) => `<p style="margin:8px 0"><b>${k}</b><br>${v === '%KEYS%' ? keysHelp() : v}</p>`).join('')}</section>`;
   open('<h3>Rules and info</h3><p class="lead" style="margin:0">Everything you need to know for competitive cubing (WCA based). Green tag: applied automatically by this timer. Grey tag: honor system.</p>' +
     '<h4>Timer rules</h4><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>' +
     INFO.map(sec).join(''));
@@ -1280,6 +1350,7 @@ ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'],
 ${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
 ${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
+${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Click a key, then press the keys you want (for example Shift+D). Esc cancels. If a key is already used, the two swap. Space is always the timer.</p>' + KEYACT.map(x => `<div class="set"><span class="lb">${x[1]}</span><button data-a="keyset" data-act="${x[0]}">${keyOf(x[0])}</button></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
 ${g('Your data', '<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">' + (view ? '' : '<button data-a="delall">Delete everything</button>') + '<button data-a="rst">Reset settings</button></span></div>')}`);
   wallPrev();
 }
@@ -1356,8 +1427,21 @@ dl.addEventListener('click', e => {
     const i = document.createElement('input');
     i.type = 'file';
     i.accept = '.json';
-    i.onchange = () => i.files[0].text().then(t => { try { S = JSON.parse(t); save(); location.reload(); } catch (x) { alert('Invalid file'); } });
+    i.onchange = () => i.files[0].text().then(t => {
+      try {
+        const J = JSON.parse(t);
+        if (!J || typeof J.data !== 'object') throw 0;
+        pendImp = J;
+        const M = mergeState(J), before = countAll(S), after = countAll(M), inFile = countAll(J);
+        open(`<h3>Import data</h3><p>This file has <b>${plural(inFile, 'solve')}</b>. You have <b>${plural(before, 'solve')}</b> here now.</p><p><b>Merge</b> keeps everything you have and adds the file: <b>${plural(after - before, 'new solve')}</b> will be added${inFile - (after - before) > 0 ? ` (${inFile - (after - before)} already here, skipped)` : ''}. Solves from the same day and cube are put in time order and the rounds are renumbered.</p><p><b>Replace</b> deletes what you have now and uses only the file.</p><div class="row btns"><button data-a="close">Cancel</button><button data-a="impreplace" class="danger">Replace everything</button><button data-a="impmerge" class="on">Merge</button></div>`);
+      } catch (x) { alert('Invalid file'); }
+    });
     i.click();
+  } else if (a === 'impmerge' && pendImp) {
+    S = mergeState(pendImp);
+    for (const id of new Set([...Object.keys(S.data), ...Object.values(S.hist).flatMap(h => Object.keys(h))])) { repb(id); repRec(id); }
+    save(); location.reload();
+  } else if (a === 'impreplace' && pendImp) { S = pendImp; save(); location.reload();
   } else if ((a === 'p2' || a === 'dnf') && s) { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; refix(); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes2') {
@@ -1383,6 +1467,8 @@ document.addEventListener('click', e => {
   else if (a === 'today') { view = null; fresh(); }
   else if (a === 'newscr' && mode === 'idle' && !view) fresh();
   else if (a === 'rules') rulesInfo();
+  else if (a === 'keyset') { capAct = b.dataset.act; b.textContent = 'Press keys…'; }
+  else if (a === 'keyreset') { S.set.keys = {}; capAct = null; save(); keyLabels(); }
   else if (a === 'set') settings();
   else if (a === 'rec' && mode === 'idle') records();
   else if (a === 'meth') methods();
@@ -1452,6 +1538,47 @@ function openSolve(i) {
   sel = i;
     const s = D().solves[sel];
     open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
+}
+
+// ---- Import: merge a saved file into the data that is already here (no solve is added twice) ----
+let pendImp = null;
+const skey = y => (y.d || 0) + '|' + y.t + '|' + y.s,
+      countAll = o => Object.values(o.data || {}).reduce((a, e) => a + e.solves.length, 0) + Object.values(o.hist || {}).reduce((a, h) => a + Object.values(h).reduce((b, e) => b + e.solves.length, 0), 0);
+
+// Adds the incoming solves of one cube on one day to an existing entry. If the two files were
+// never the same session their round numbers would clash, so the later group is renumbered after the earlier one.
+function mergeEntry(cur, incoming) {
+  const seen = new Set(cur.solves.map(skey));
+  let nb = incoming.filter(y => !seen.has(skey(y)));
+  const rm = L => Math.max(0, ...L.map(y => y.r || 0)), shift = (L, off) => L.map(y => y.r ? { ...y, r: y.r + off } : y);
+  if (nb.length === incoming.length && cur.solves.length && nb.length) {
+    if ((nb[0].d || 0) < (cur.solves[0].d || 0)) cur.solves = shift(cur.solves, rm(nb));
+    else nb = shift(nb, rm(cur.solves));
+  }
+  cur.solves = cur.solves.concat(nb).sort((x, y) => (x.d || 0) - (y.d || 0));
+  fixRounds(cur);
+  return cur;
+}
+
+function mergeState(J) {
+  const M = JSON.parse(JSON.stringify(S)), blank = () => ({ solves: [], rounds: [], round: 1 });
+  M.data = M.data || {}; M.hist = M.hist || {}; M.rec = M.rec || {}; M.rec.c = M.rec.c || {}; M.known = M.known || {};
+  for (const c of J.custom || []) { M.custom = M.custom || []; if (!M.custom.some(x => x.id === c.id)) M.custom.push(JSON.parse(JSON.stringify(c))); }
+  const into = (day, id, list) => {
+    if (!list || !list.length) return;
+    const inc = JSON.parse(JSON.stringify(list));
+    if (day === M.day) M.data[id] = mergeEntry(M.data[id] || blank(), inc);
+    else { const h = (M.hist[day] = M.hist[day] || {}); h[id] = mergeEntry(h[id] || blank(), inc); }
+  };
+  for (const day in J.hist || {}) for (const id in J.hist[day]) into(day, id, J.hist[day][id].solves);
+  for (const id in J.data || {}) into(J.day || M.day, id, J.data[id].solves);
+  M.known = { ...(J.known || {}), ...M.known };
+  for (const id in (J.rec && J.rec.c) || {}) {
+    const a = M.rec.c[id] || {}, b = J.rec.c[id];
+    M.rec.c[id] = { ...b, ...a, streak: Math.max(a.streak || 0, b.streak || 0), days: Math.max(a.days || 0, b.days || 0) };
+  }
+  M.rec.days = Math.max(M.rec.days || 0, (J.rec && J.rec.days) || 0);
+  return M;
 }
 
 // Popup for one round: result, dropped times, and every solve of that round (click one to open it).
@@ -1587,3 +1714,5 @@ async function pull() {
 pull();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); } });
 setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);
+
+keyLabels();

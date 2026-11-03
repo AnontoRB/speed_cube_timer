@@ -636,6 +636,10 @@ header .menu > button[data-a=progress] { display: none; }
   header .menu > button[data-a=progress] { display: flex; }
 }
 
+/* Cancel button during the 15 s inspection */
+#icancel { display: block; margin: 14px auto 0; padding: 8px 18px; }
+#icancel[hidden] { display: none; }
+
 /* Round summary in the message under the timer: stays short so the big time is never pushed out of view. */
 #msg { max-height: 30vh; overflow-y: auto; }
 #msg .rsum .chips { justify-content: center; }
