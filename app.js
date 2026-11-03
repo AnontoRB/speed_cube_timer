@@ -1065,6 +1065,19 @@ function add(t, p, why) {
 const ib = document.createElement('button');
 ib.id = 'icancel'; ib.type = 'button'; ib.tabIndex = -1; ib.hidden = true; ib.textContent = 'Cancel inspection';
 $('#msg').after(ib);
+const ibLabel = () => { ib.textContent = (mode === 'run' ? 'Cancel solve (' : 'Cancel inspection (') + keyOf('cancel') + ')'; };
+// Stops a solve that is running and throws the time away (nothing is saved).
+function cancelRun() {
+  if (mode !== 'run') return;
+  mode = 'idle';
+  holding = ready = false;
+  clearTimeout(ht);
+  ib.hidden = true;
+  tm.className = '';
+  tm.textContent = '0.00';
+  $('#msg').textContent = 'Solve cancelled. The time was not saved. Hold SPACE or touch to try again.';
+  focusUI();
+}
 function cancelInsp() {
   if (mode !== 'insp') return;
   mode = 'idle';
@@ -1076,7 +1089,7 @@ function cancelInsp() {
   $('#msg').textContent = 'Inspection cancelled. Hold SPACE or touch to start again.';
   focusUI();
 }
-ib.addEventListener('click', cancelInsp);
+ib.addEventListener('click', () => (mode === 'run' ? cancelRun() : cancelInsp()));
 
 function tick() {
   focusUI();
@@ -1106,6 +1119,7 @@ function down() {
   if (mode === 'run') {
     const t = performance.now() - t0;
     mode = 'idle';
+    ib.hidden = true;
     tm.className = '';
     add(t, pen);
     return;
@@ -1133,6 +1147,7 @@ function up() {
     i0 = performance.now();
     b8 = b12 = 0;
     pen = 0;
+    ibLabel();
     ib.hidden = false;
     tm.className = 'insp';
     $('#msg').textContent = 'Inspection: hold and release to start';
@@ -1140,7 +1155,8 @@ function up() {
   } else if (ready) {
     pen = mode === 'insp' ? Math.max(0, insp((performance.now() - i0) / 1000)) : 0;
     mode = 'run';
-    ib.hidden = true;
+    ibLabel();
+    ib.hidden = false;
     t0 = performance.now();
     tm.className = '';
     $('#msg').textContent = pen ? '+2 penalty (inspection over 15 s)' : '';
@@ -1153,7 +1169,7 @@ function up() {
 
 // ---- Keyboard shortcuts (can be changed in Settings) ----
 const KEYACT = [
-  ['cancel', 'Cancel inspection', 'Shift+C'],
+  ['cancel', 'Cancel inspection or running solve', 'Shift+C'],
   ['del', 'Delete last solve', 'Shift+D'],
   ['dnf', 'DNF on/off for last solve', 'D'],
   ['p2', '+2 on/off for last solve', 'Shift+2'],
@@ -1178,9 +1194,9 @@ function comboOf(e) {
   return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + k;
 }
 const hint = () => `Hold SPACE or touch to start · ${keyOf('del')} deletes last · ${keyOf('p2')} = +2 · ${keyOf('dnf')} = DNF`;
-const keysHelp = () => `${keyOf('del')} (or Backspace/Delete) removes the last solve, ${keyOf('undo')} undoes a delete, ${keyOf('p2')} toggles +2, ${keyOf('dnf')} toggles DNF, ${keyOf('cancel')} cancels the inspection, ${keyOf('scr')} gives a new scramble. ${KEYACT.filter(x => KEYOPEN[x[0]]).map(x => keyOf(x[0]) + ' ' + x[1]).join(', ')}. You can change all of these in Settings.`;
+const keysHelp = () => `${keyOf('del')} (or Backspace/Delete) removes the last solve, ${keyOf('undo')} undoes a delete, ${keyOf('p2')} toggles +2, ${keyOf('dnf')} toggles DNF, ${keyOf('cancel')} cancels the inspection or a running solve (the time is not saved), ${keyOf('scr')} gives a new scramble. ${KEYACT.filter(x => KEYOPEN[x[0]]).map(x => keyOf(x[0]) + ' ' + x[1]).join(', ')}. You can change all of these in Settings.`;
 function keyLabels() {
-  ib.textContent = 'Cancel inspection (' + keyOf('cancel') + ')';
+  ibLabel();
   const m = $('#msg');
   if (m && /^Hold SPACE/.test(m.textContent)) m.textContent = hint();
   document.querySelectorAll('[data-a="keyset"]').forEach(b => { b.textContent = keyOf(b.dataset.act) || 'none'; });
@@ -1220,6 +1236,10 @@ document.addEventListener('keydown', e => {
   if (dl.open) return;
   if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
   const act = actOf(comboOf(e));
+  if (mode === 'run') {
+    if (act === 'cancel') { e.preventDefault(); cancelRun(); return; }
+    if (!comboOf(e)) return;   // Shift, Ctrl or Alt alone must not stop the timer (they start a shortcut)
+  }
   if (mode === 'insp' && (act === 'cancel' || e.code === 'Escape')) { e.preventDefault(); cancelInsp(); return; }
   if (mode === 'idle' && !e.repeat) {
     let a = act;
@@ -1243,6 +1263,7 @@ document.addEventListener('keyup', e => {
 
 document.addEventListener('pointerdown', e => {
   if (dl.open) return;
+  if (e.target.closest('#icancel')) return;   // the Cancel button must not stop (and save) the timer
   if (mode === 'run') { down(); return; }
   if (e.target.closest('#tz') && !e.target.closest('button')) down();
 });
