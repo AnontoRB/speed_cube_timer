@@ -719,3 +719,16 @@ body.wide header #scr { flex: 1 1 0; min-width: 0; min-height: 0; max-height: 3.
 /* less space between the menu icon row and the goal box */
 #sidemenu { margin-bottom: 0; }
 #goal { margin-top: 0; }
+
+/* phones: the calendar icon takes the place of the progress-graph icon in the menu row */
+.mcal { display: none; }
+#sidemenu .mcal { display: none; }
+@media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
+  header .menu > button.mcal { display: flex; }
+  header .menu > button[data-a=progress] { display: none; }
+}
+
+/* phones: no separate date row, the calendar icon in the menu row opens the calendar */
+@media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
+  header .menu > #dt { display: none; }
+}
