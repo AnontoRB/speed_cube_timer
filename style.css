@@ -732,3 +732,49 @@ body.wide header #scr { flex: 1 1 0; min-width: 0; min-height: 0; max-height: 3.
 @media (max-width: 600px), (max-height: 520px) and (orientation: landscape) {
   header .menu > #dt { display: none; }
 }
+
+/* phones: the icon row sits at the bottom of the screen */
+@media (max-width: 600px) {
+  header { row-gap: 0; }
+  header .menu { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; width: auto; margin: 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--bg); border-top: 1px solid var(--line); }
+  body { padding-bottom: calc(var(--tap) + 18px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* phones: tidy stats area. Same gap, same padding, same text size and centred text in every tile */
+@media (max-width: 600px) {
+  #rs, #st { gap: 6px; margin: 0 0 6px; }
+  #rs div, #st div { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px 4px; min-height: 3.1em; }
+  #rs small, #st small { font-size: .66em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  #rs b, #st b { font-size: 1em; line-height: 1.25; white-space: nowrap; }
+}
+
+/* phones: the 5 last-solve tiles use the same 3 + 2 layout as the stats tiles below */
+@media (max-width: 600px) {
+  #rs { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #rs div { grid-column: span 2; }
+  #rs div:nth-child(n+4), #rs div:last-child:nth-child(odd) { grid-column: span 3; }
+}
+
+/* phones: last-solve tiles look different from the stats tiles (accent top edge and a light accent tint) */
+@media (max-width: 600px) {
+  #rs div { background: color-mix(in srgb, var(--ac, #5b9bff) 12%, var(--card)); border-top: 3px solid var(--ac, #5b9bff); border-radius: calc(var(--rad, 8px) * 1.25); }
+  #rs small { color: color-mix(in srgb, var(--ac, #5b9bff) 55%, var(--mut)); }
+}
+
+/* phones: stats tiles flipped (2 on top, 3 below) and coloured red */
+@media (max-width: 600px) {
+  #st { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #st div { grid-column: span 3; }
+  #st div:nth-child(n+3) { grid-column: span 2; }
+  #st div:last-child:nth-child(odd) { grid-column: span 2; }
+  #st div { background: color-mix(in srgb, #e74c3c 14%, var(--card)); border-top: 3px solid #e74c3c; }
+  #st small { color: color-mix(in srgb, #e74c3c 55%, var(--mut)); }
+}
+
+/* phones: softer, lighter tile colours */
+@media (max-width: 600px) {
+  #st div { background: color-mix(in srgb, #e74c3c 7%, var(--card)); border-top-color: color-mix(in srgb, #e74c3c 60%, var(--card)); }
+  #st small { color: color-mix(in srgb, #e74c3c 35%, var(--mut)); }
+  #rs div { background: color-mix(in srgb, var(--ac, #5b9bff) 6%, var(--card)); border-top-color: color-mix(in srgb, var(--ac, #5b9bff) 60%, var(--card)); }
+  #rs small { color: color-mix(in srgb, var(--ac, #5b9bff) 35%, var(--mut)); }
+}

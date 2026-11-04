@@ -1544,8 +1544,11 @@ dl.addEventListener('click', e => {
   else if (a === 'solve') openSolve(+b.dataset.i);
   else if (a === 'exp') {
     const l = document.createElement('a');
-    l.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' }));
-    l.download = 'cubetimer-data.json';
+    // the whole app state goes into the file: solves, history, records, custom cubes, settings and look (anything new added to S or S.set is included automatically), plus the wallpaper
+    const out = { ...S, app: 'cubetimer', fmt: 2, exported: Date.now() };
+    if (WALL) out.wall = WALL;
+    l.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+    l.download = 'cubetimer-backup-' + dkey(Date.now()) + '.json';
     l.click();
   } else if (a === 'imp') {
     const i = document.createElement('input');
@@ -1557,15 +1560,22 @@ dl.addEventListener('click', e => {
         if (!J || typeof J.data !== 'object') throw 0;
         pendImp = J;
         const M = mergeState(J), before = countAll(S), after = countAll(M), inFile = countAll(J);
-        open(`<h3>Import data</h3><p>This file has <b>${plural(inFile, 'solve')}</b>. You have <b>${plural(before, 'solve')}</b> here now.</p><p><b>Merge</b> keeps everything you have and adds the file: <b>${plural(after - before, 'new solve')}</b> will be added${inFile - (after - before) > 0 ? ` (${inFile - (after - before)} already here, skipped)` : ''}. Solves from the same day and cube are put in time order and the rounds are renumbered.</p><p><b>Replace</b> deletes what you have now and uses only the file.</p><div class="row btns"><button data-a="close">Cancel</button><button data-a="impreplace" class="danger">Replace everything</button><button data-a="impmerge" class="on">Merge</button></div>`);
+        open(`<h3>Import data</h3><p>This file has <b>${plural(inFile, 'solve')}</b>. You have <b>${plural(before, 'solve')}</b> here now.</p><p><b>Merge</b> keeps everything you have and adds the file: <b>${plural(after - before, 'new solve')}</b> will be added${inFile - (after - before) > 0 ? ` (${inFile - (after - before)} already here, skipped)` : ''}. Solves from the same day and cube are put in time order and the rounds are renumbered.</p><p><b>Replace</b> deletes what you have now and uses only the file.</p>${J.set ? '<p><label><input type="checkbox" id="impset" checked> Also import the <b>settings and look</b> from this file (theme, layout, typing mode, random scramble, goal, keys, custom cubes' + (J.wall ? ', wallpaper' : '') + ')</label></p>' : '<p class="dtl">This file has no settings (older export), so only the solves are imported.</p>'}<div class="row btns"><button data-a="close">Cancel</button><button data-a="impreplace" class="danger">Replace everything</button><button data-a="impmerge" class="on">Merge</button></div>`);
       } catch (x) { alert('Invalid file'); }
     });
     i.click();
   } else if (a === 'impmerge' && pendImp) {
     S = mergeState(pendImp);
+    if (wantSet()) applySet(S, pendImp);
     for (const id of new Set([...Object.keys(S.data), ...Object.values(S.hist).flatMap(h => Object.keys(h))])) { repb(id); repRec(id); }
     save(); location.reload();
-  } else if (a === 'impreplace' && pendImp) { S = pendImp; save(); location.reload();
+  } else if (a === 'impreplace' && pendImp) {
+    const keep = S.set, N = { ...pendImp };
+    for (const k of ['app', 'fmt', 'exported', 'wall']) delete N[k];
+    N.set = keep;
+    S = N;
+    if (wantSet()) applySet(S, pendImp);
+    save(); location.reload();
   } else if ((a === 'p2' || a === 'dnf') && s) { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; refix(); save(); render(); dl.close(); }
   else if (a === 'del') { dl.close(); delSolve(sel); }
   else if (a === 'yes2') {
@@ -1686,6 +1696,17 @@ function mergeEntry(cur, incoming) {
   cur.solves = cur.solves.concat(nb).sort((x, y) => (x.d || 0) - (y.d || 0));
   fixRounds(cur);
   return cur;
+}
+
+// "Also import settings and look" tick box in the import window.
+const wantSet = () => { const c = document.getElementById('impset'); return !!(c && c.checked); };
+
+// Carries the file's settings, view and wallpaper over. Settings missing from an old file keep their defaults.
+function applySet(N, J) {
+  N.set = { ...defSet(), ...(N.set || {}), ...(J.set || {}) };
+  if (J.view) N.view = J.view;
+  if (J.wall) { try { localStorage.setItem('ct2wall', J.wall); WALL = J.wall; } catch (e) {} }
+  return N;
 }
 
 function mergeState(J) {
