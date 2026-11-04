@@ -197,7 +197,7 @@ let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0,
 
 const newScr = () => {
   scr = S.set.rnd ? 'Random' : genScr(curCube());
-  $('#scr').textContent = view ? '' : S.set.rnd ? 'Random scramble: no scramble is shown, solves are saved as "Random"' : (scr || '(this cube has no scramble)');
+  $('#scr').textContent = view ? '' : S.set.rnd ? 'Random scramble · solves are saved as "Random"' : (scr || '(this cube has no scramble)');
 };
 
 // New scramble, reset timer and message.
@@ -966,8 +966,9 @@ function goalPanel() {
   let h = '';
   if (gl) h += `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
   if (sk > 1) h += `<div class="sk">🔥 ${sk}-day streak${bestSk > sk ? ` <small>(best ${bestSk})</small>` : ''}</div>`;
-  h += weekHtml(key) + tilesHtml();
-  return h;
+  h += weekHtml(key);
+  // only this box (goal, streak, week) opens the progress graph; the tiles below do not
+  return `<div class="gbtn" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${h}</div>` + tilesHtml();
 }
 
 // Detail lines for one solve in its popup: PB, rank that day, percentile, penalties.
@@ -1149,6 +1150,29 @@ function syncMode() {
     if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
   }
 }
+
+// Laptop/desktop layout: New/Random/Type icons sit in the top bar next to the date, and the menu buttons (except the date) stack at the top of the side column.
+// Phones and tablets keep the old layout.
+const toolsBox = document.querySelector('.tools'), menuBox = document.querySelector('header .menu'), scrBox = $('#scr');
+const sideMenu = document.createElement('div');
+sideMenu.id = 'sidemenu';
+$('#side').prepend(sideMenu);
+const menuBtns = [...menuBox.querySelectorAll(':scope > button:not(#dt)')];
+const wideMq = matchMedia('(min-width: 801px) and (min-height: 521px)');
+function placeTools() {
+  const w = wideMq.matches;
+  document.body.classList.toggle('wide', w);
+  if (w) {   // wide: the scramble sits in the middle of the top bar, the icons left of the date
+    menuBox.prepend(toolsBox);
+    document.querySelector('header .sp').before(scrBox);
+  } else {
+    $('#scw').prepend(scrBox);
+    scrBox.after(toolsBox);
+  }
+  for (const b of menuBtns) (w ? sideMenu : menuBox).appendChild(b);
+}
+placeTools();
+wideMq.addEventListener('change', placeTools);
 
 function setTyping(on) {
   S.set.typing = on;
@@ -1589,6 +1613,8 @@ document.addEventListener('click', e => {
 let chartScope = 'day';
 function progress(scope) {
   if (scope) chartScope = scope;
+  // Opened from the goal box with fewer than 3 solves today: show all time instead of an empty "Today" tab.
+  if (!scope && chartScope !== 'all' && D().solves.map(val).filter(isFinite).length < 3 && allSolves(S.cur).map(val).filter(isFinite).length >= 3) chartScope = 'all';
   const day = chartScope !== 'all', L = day ? D().solves : allSolves(S.cur), n = L.length, v = L.map(val), fin = v.filter(isFinite),
         head = `<h3>Progress · ${esc(name())}</h3><div class="row tabs"><button data-a="pg" data-s="day" class="${day ? 'on' : ''}">${view ? 'That day' : 'Today'}</button><button data-a="pg" data-s="all" class="${day ? '' : 'on'}">All time</button></div>`;
   if (fin.length < 3) { open(head + '<p class="lead">Do a few more solves and your progress graph will show up here (it needs at least 3 times).</p>'); return; }

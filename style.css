@@ -56,7 +56,7 @@ header .menu { display: flex; flex-wrap: wrap; gap: var(--btn-gap); }
 #scw { display: flex; align-items: center; gap: var(--btn-gap, 8px); }
 #scw #scr { flex: 1; min-width: 0; }
 #ns { flex: none; }
-#scr[style*="none"] + #ns, body.view #ns, body.run #ns { display: none; }
+#scr[style*="none"] + .tools #ns, body.view #ns, body.run #ns { display: none; }
 #tz { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--th, 42vh); border-radius: calc(var(--rad, 8px) * 2); background: var(--card); margin: 6px 0; touch-action: manipulation; }
 #tm { font-size: min(var(--fs), 24vw); font-family: var(--tf, inherit); font-weight: var(--tw, 600); font-variant-numeric: tabular-nums; max-width: 100%; }
 #tm.hold { color: var(--hd, #e74c3c); }
@@ -668,3 +668,54 @@ body.typing:not(.view) #msg { position: absolute; left: 0; right: 0; top: calc(5
 @media (max-width: 360px) {
   header .menu { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+
+/* scramble tools: minimal, icon-only, takes very little space */
+.tools { flex: none; display: flex; align-items: center; gap: 2px; }
+.tools button { display: flex; align-items: center; justify-content: center; min-width: 30px; width: 30px; min-height: 30px; height: 30px; padding: 0; border-color: transparent; background: transparent; color: var(--mut); line-height: 1; }
+.tools button:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); color: var(--fg); }
+.tools .ti { font-size: 1.05em; }
+.tools .lb { display: none; }
+.tools button.on { background: color-mix(in srgb, var(--ac, #5b9bff) 30%, transparent); border-color: var(--ac, #5b9bff); color: var(--fg); }
+body.view .tools, body.run .tools { display: none; }
+.tools #ns, .tools #rn, .tools #ty { min-width: 30px; min-height: 30px; }
+
+/* wide screens: the New / Random / Type buttons live in the top menu row and look like the other menu buttons */
+.tools:empty { display: none; }
+.menu .ti { font-size: 1em; }
+.menu .lb { font-size: 1em; color: inherit; }
+.menu button.on { background: color-mix(in srgb, var(--ac, #5b9bff) 30%, var(--card)); border-color: var(--ac, #5b9bff); }
+body.view .menu #ns, body.view .menu #rn, body.view .menu #ty { display: none; }
+
+/* laptop/desktop: menu buttons stacked up and down at the top of the side column */
+#sidemenu { flex: none; display: flex; flex-direction: column; gap: var(--btn-gap, 8px); margin-bottom: 12px; }
+#sidemenu:empty { display: none; }
+#sidemenu button { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; text-align: left; }
+#sidemenu button[data-a="progress"] { display: none; }
+#sidemenu .ic { display: block; width: 20px; height: 20px; flex: none; }
+body.run #sidemenu { visibility: hidden; }
+
+/* side menu: all buttons in ONE row (icons only), so it takes the height of a single button */
+#sidemenu { flex-direction: row; gap: 6px; margin-bottom: 10px; }
+#sidemenu button { flex: 1 1 0; width: auto; min-width: 0; justify-content: center; padding: 0 4px; }
+#sidemenu .tx { display: none; }
+
+/* laptop/desktop: scramble in the middle of the top bar */
+body.wide #scw { display: none; }
+body.wide header .sp { display: none; }
+body.wide header #scr { flex: 1 1 0; min-width: 0; min-height: 0; max-height: 3.4em; overflow-y: auto; padding: 0 14px; margin: 0; font-size: clamp(12px, 1.15vw, var(--ss)); line-height: 1.35; }
+
+/* click the scramble to get a new one */
+#scr[data-a="newscr"] { cursor: pointer; }
+
+/* the "3x3 · N solves today" heading is hidden; the graph opens from the daily goal box instead */
+#side .row { display: none; }
+#goal[data-a="progress"] { cursor: pointer; }
+#goal[data-a="progress"]:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+
+/* the goal / streak / week box is the button for the progress graph */
+.gbtn { border: 1px solid color-mix(in srgb, var(--fg) 22%, var(--bg)); border-radius: calc(var(--rad, 8px) * 1.5); padding: 10px 12px; cursor: pointer; margin-bottom: 10px; }
+.gbtn:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); border-color: color-mix(in srgb, var(--fg) 40%, var(--bg)); }
+
+/* less space between the menu icon row and the goal box */
+#sidemenu { margin-bottom: 0; }
+#goal { margin-top: 0; }
