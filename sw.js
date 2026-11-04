@@ -1,5 +1,5 @@
 // Network first (so updates always show), cached copy used when offline.
-const C = 'cubetimer-v4';
+const C = 'cubetimer-v5';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'bt-timer.js', 'pkg/cubetimer.js', 'pkg/cubetimer_bg.wasm'];
 
 self.addEventListener('install', e => {
@@ -23,4 +23,4 @@ self.addEventListener('fetch', e => {
       })
       .catch(() => caches.match(e.request))
   );
-});
+});

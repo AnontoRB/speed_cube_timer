@@ -60,7 +60,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
-  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20,
+  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
   tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, wallDim: 45, cardOp: 72
 });
 
@@ -196,8 +196,8 @@ function applyTheme() {
 let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0, pen = 0, b8 = 0, b12 = 0;
 
 const newScr = () => {
-  scr = genScr(curCube());
-  $('#scr').textContent = view ? '' : (scr || '(this cube has no scramble)');
+  scr = S.set.rnd ? 'Random' : genScr(curCube());
+  $('#scr').textContent = view ? '' : S.set.rnd ? 'Random scramble: no scramble is shown, solves are saved as "Random"' : (scr || '(this cube has no scramble)');
 };
 
 // New scramble, reset timer and message.
@@ -248,6 +248,7 @@ function roundsHtml(d) {
 }
 
 function render() {
+  syncMode();
   $('#ev').textContent = name();
   const d = D(), [best, mean, cur, bao] = stats(arr(d.solves.map(val))),
         bx = (l, x) => `<div><small>${l}</small><b>${fx(x)}</b></div>`;
@@ -1091,6 +1092,73 @@ function cancelInsp() {
 }
 ib.addEventListener('click', () => (mode === 'run' ? cancelRun() : cancelInsp()));
 
+// ---- Typing mode: type a time instead of using the timer ----
+const ti = document.createElement('input');
+ti.id = 'ti'; ti.type = 'text'; ti.inputMode = 'decimal'; ti.autocomplete = 'off'; ti.spellcheck = false; ti.hidden = true;
+ti.placeholder = 'Type time, press Enter';
+ti.setAttribute('aria-label', 'Type your time');
+$('#msg').before(ti);
+
+// Accepts 12.34, 23 (= 23 s), 1:23.45, DNF or D. A trailing + means the time already includes +2.
+function parseTime(str) {
+  let s = str.trim().toLowerCase().replace(/,/g, '.');
+  if (!s) return null;
+  if (s === 'dnf' || s === 'd') return { t: 0, p: 'D' };
+  let p = 0;
+  if (s.endsWith('+')) { p = 2; s = s.slice(0, -1).trim(); }
+  let ms;
+  if (/^\d+$/.test(s)) {
+    ms = +s * 1000;   // digits only = whole seconds (23 = 23 s)
+  } else {
+    const m = s.match(/^(?:(\d+):)?(\d+)(?:\.(\d{1,3}))?$/);
+    if (!m) return null;
+    const min = +(m[1] || 0), sec = +m[2];
+    if (m[1] && sec >= 60) return null;
+    ms = (min * 60 + sec) * 1000 + +((m[3] || '').padEnd(3, '0') || 0);
+  }
+  if (p === 2) ms -= 2000;
+  if (!(ms > 0) && p !== 2) return null;
+  if (ms < 0) return null;
+  return { t: ms, p };
+}
+
+function typeSolve() {
+  if (view || mode !== 'idle') return;
+  const r = parseTime(ti.value);
+  if (!r) {
+    ti.classList.add('bad');
+    $('#msg').textContent = 'Could not read that time. Try 12.34, 23 (= 23 s), 1:23.45 or DNF. Add + for a +2 time (12.34+).';
+    return;
+  }
+  ti.classList.remove('bad');
+  ti.value = '';
+  add(r.t, r.p);
+  ti.focus();
+}
+
+ti.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); typeSolve(); } });
+ti.addEventListener('input', () => ti.classList.remove('bad'));
+
+// Shows or hides the typing box and keeps the two small toggle buttons in sync.
+function syncMode() {
+  const typing = !!S.set.typing;
+  document.body.classList.toggle('typing', typing);
+  ti.hidden = !(typing && !view);
+  for (const [id, on] of [['#ty', typing], ['#rn', !!S.set.rnd]]) {
+    const b = $(id);
+    if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  }
+}
+
+function setTyping(on) {
+  S.set.typing = on;
+  save();
+  syncMode();
+  if (!view) $('#msg').textContent = hint();
+  if (on && !view) ti.focus();
+}
+
+
 function tick() {
   focusUI();
   if (mode === 'run') {
@@ -1193,12 +1261,12 @@ function comboOf(e) {
   const k = /^Key[A-Z]$/.test(c) ? c.slice(3) : /^(Digit|Numpad)\d$/.test(c) ? c.slice(-1) : c;
   return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + k;
 }
-const hint = () => `Hold SPACE or touch to start · ${keyOf('del')} deletes last · ${keyOf('p2')} = +2 · ${keyOf('dnf')} = DNF`;
+const hint = () => S.set.typing ? 'Type your time and press Enter · 12.34 · 23 = 23 s · 1:23.45 · D = DNF · add + for a +2 time (12.34+)' : `Hold SPACE or touch to start · ${keyOf('del')} deletes last · ${keyOf('p2')} = +2 · ${keyOf('dnf')} = DNF`;
 const keysHelp = () => `${keyOf('del')} (or Backspace/Delete) removes the last solve, ${keyOf('undo')} undoes a delete, ${keyOf('p2')} toggles +2, ${keyOf('dnf')} toggles DNF, ${keyOf('cancel')} cancels the inspection or a running solve (the time is not saved), ${keyOf('scr')} gives a new scramble. ${KEYACT.filter(x => KEYOPEN[x[0]]).map(x => keyOf(x[0]) + ' ' + x[1]).join(', ')}. You can change all of these in Settings.`;
 function keyLabels() {
   ibLabel();
   const m = $('#msg');
-  if (m && /^Hold SPACE/.test(m.textContent)) m.textContent = hint();
+  if (m && /^(Hold SPACE|Type your time)/.test(m.textContent)) m.textContent = hint();
   document.querySelectorAll('[data-a="keyset"]').forEach(b => { b.textContent = keyOf(b.dataset.act) || 'none'; });
 }
 
@@ -1246,6 +1314,11 @@ document.addEventListener('keydown', e => {
     if (!a && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) a = 'del';
     if (a && runKey(a)) { e.preventDefault(); return; }
   }
+  if (S.set.typing && !view && mode === 'idle') {
+    if (e.code === 'Space') { e.preventDefault(); ti.focus(); }
+    else if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) ti.focus();   // the digit lands in the box
+    return;
+  }
   if (e.code === 'Space') {
     e.preventDefault();
     if (!e.repeat) down();
@@ -1265,7 +1338,10 @@ document.addEventListener('pointerdown', e => {
   if (dl.open) return;
   if (e.target.closest('#icancel')) return;   // the Cancel button must not stop (and save) the timer
   if (mode === 'run') { down(); return; }
-  if (e.target.closest('#tz') && !e.target.closest('button')) down();
+  if (e.target.closest('#tz') && !e.target.closest('button')) {
+    if (S.set.typing && !view) { if (e.target !== ti) setTimeout(() => ti.focus()); return; }
+    down();
+  }
 });
 
 ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (!dl.open) up(); }));
@@ -1368,6 +1444,7 @@ ${g('Theme and colors', sl('theme', 'Theme', [['dark', 'Dark'], ['light', 'Light
 ${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden><p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>' + r('wallDim', 'Darkness over the picture (%)', 0, 90, 5) + r('cardOp', 'Opacity of the boxes on the home screen (%)', 0, 100, 5))}
 ${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show side column (rounds, delete)'))}
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
+${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
 ${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
 ${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
@@ -1389,6 +1466,8 @@ dl.addEventListener('input', e => {
   }
   if (k === 'dec') v = +v;
   s[k] = v;
+  if (k === 'rnd') newScr();
+  if (k === 'typing' && !view && mode === 'idle') $('#msg').textContent = hint();
   if (k === 'theme' && PRE[v]) {
     Object.assign(s, PRE[v]);
     settings();
@@ -1487,6 +1566,8 @@ document.addEventListener('click', e => {
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
   else if (a === 'today') { view = null; fresh(); }
   else if (a === 'newscr' && mode === 'idle' && !view) fresh();
+  else if (a === 'typing' && mode === 'idle') setTyping(!S.set.typing);
+  else if (a === 'rnd' && mode === 'idle' && !view) { S.set.rnd = !S.set.rnd; save(); newScr(); syncMode(); }
   else if (a === 'rules') rulesInfo();
   else if (a === 'keyset') { capAct = b.dataset.act; b.textContent = 'Press keys…'; }
   else if (a === 'keyreset') { S.set.keys = {}; capAct = null; save(); keyLabels(); }

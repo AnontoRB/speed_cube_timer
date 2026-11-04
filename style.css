@@ -646,3 +646,25 @@ header .menu > button[data-a=progress] { display: none; }
 #msg .rsd { margin-top: 4px; }
 #msg .rsd summary { cursor: pointer; color: var(--mut); }
 #msg .rsd .dtl { text-align: left; font-size: .9em; }
+
+/* typing mode and random scramble */
+#rn, #ty { flex: none; }
+body.view #rn, body.view #ty, body.run #rn, body.run #ty { display: none; }
+#ti { width: min(16em, 86%); margin-top: 8px; text-align: center; font-size: 1.5rem; font-variant-numeric: tabular-nums; font-family: var(--tf, inherit); background: var(--bg); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, var(--bg)); border-radius: var(--rad, 8px); padding: 10px 14px; }
+#ti[hidden] { display: none; }
+#ti.bad { border-color: #e74c3c; }
+/* typing mode: no big timer number, only the box (past days still show the time) */
+body.typing:not(.view) #tm { display: none; }
+/* typing mode layout: box in the middle of the timer area, the message hangs below it and never pushes it */
+body.typing:not(.view) #tz { position: relative; justify-content: center; padding: 0; }
+body.typing:not(.view) #ti { margin: 0; flex: none; }
+body.typing:not(.view) #msg { position: absolute; left: 0; right: 0; top: calc(50% + 46px); bottom: 6px; width: min(46em, 100%); min-height: 0; margin: 0 auto; overflow-y: auto; }
+
+/* phones: the Bluetooth button was added, so the icon row now has 6 buttons and all of them stay on one line */
+@media (max-width: 600px) {
+  header .menu, header .menu { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  header .menu > button { padding: 0 1px; }
+}
+@media (max-width: 360px) {
+  header .menu { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
