@@ -1,36 +1,272 @@
-// bt-timer.js - QiYi Smart Timer over Web Bluetooth (diagnostic + display hooks)
+// bt-timer.js - QiYi Smart Timer (QY-Timer / QY-Adapter) over Web Bluetooth.
+// Protocol ported from csTimer's qiyitimer.js: the timer only talks after an encrypted "hello"
+// (AES-128, key 0x77 x16, CRC16-Modbus) is written to it. Timer states then drive the page's own
+// timer (hold -> ready -> run -> stop), so focus mode, the cancel button and the solve list work
+// exactly like the spacebar. A log panel shows everything (works on phones).
 (() => {
-  const OPTIONAL = [
-    '0000fd50-0000-1000-8000-00805f9b34fb',
-    0xfff0, 0xffe0, 0xfee7, 0x180a, 0x180f, 0xff00,
-    '0000fff0-0000-1000-8000-00805f9b34fb',
-    '0000ffe0-0000-1000-8000-00805f9b34fb',
-    '0000fee7-0000-1000-8000-00805f9b34fb'
-  ];
-  const GUESS = false; // true = old "last 4 bytes = time" guess (can add fake solves)
+  const SERVICE = '0000fd50-0000-1000-8000-00805f9b34fb';
+  const SUFFIX = '-0000-1001-8001-00805f9b07d0';
+  const CH_WRITE = '00000001' + SUFFIX;
+  const CH_READ = '00000002' + SUFFIX;
+  const CIC = 0x0504; // manufacturer data id that carries the timer's MAC address
 
-  let dev = null, got = 0, runTimer = null, lastT = 0, lastAt = 0;
+  let dev = null, wChar = null, rChar = null, aes = null;
+  let waitPkg = 0, payloadLen = 0, payloadData = [];
+  let lastT = 0, lastAt = 0, readyT = 0, got = 0;
 
-  // ---------- on-screen log (works on phones) ----------
+  // ================= log panel =================
   let box = null, pre = null;
   function logBox() {
-    if (box) return;
+    if (box && box.isConnected) return;
     box = document.createElement('div');
-    box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:200;background:#000d;color:#9f9;font:11px ui-monospace,monospace;padding:6px;max-height:40vh;display:flex;flex-direction:column';
-    box.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:4px"><button id="btcopy" style="min-height:30px">Copy log</button><button id="btx" style="min-height:30px">Close</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
+    box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2000;background:#000e;color:#9f9;font:11px ui-monospace,Menlo,Consolas,monospace;padding:6px;max-height:40vh;display:flex;flex-direction:column;user-select:text;-webkit-user-select:text';
+    box.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:4px"><button type="button" data-bt="copy" style="min-height:32px">Copy log</button><button type="button" data-bt="close" style="min-height:32px">Close</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
     pre = box.querySelector('pre');
-    box.querySelector('#btx').onclick = () => { box.remove(); box = null; };
-    box.querySelector('#btcopy').onclick = () => navigator.clipboard && navigator.clipboard.writeText(pre.textContent);
+    box.querySelector('[data-bt=close]').onclick = () => box.remove();
+    box.querySelector('[data-bt=copy]').onclick = () => { try { navigator.clipboard.writeText(pre.textContent); } catch (e) {} };
     document.body.appendChild(box);
   }
-  const log = t => {
+  function log(t) {
     console.log('[BT]', t);
     logBox();
     pre.textContent += new Date().toISOString().slice(14, 23) + ' ' + t + '\n';
     pre.scrollTop = pre.scrollHeight;
-  };
+  }
+  const hex = b => Array.from(b, x => (x & 255).toString(16).padStart(2, '0')).join(' ');
 
-  // ---------- button status ----------
+  // ================= AES-128 (ECB, one 16-byte block) =================
+  const SBOX = new Uint8Array(256), INV = new Uint8Array(256);
+  const xt = x => ((x << 1) ^ (x & 0x80 ? 0x1b : 0)) & 0xff;
+  const gm = (a, b) => { let r = 0; while (b) { if (b & 1) r ^= a; a = xt(a); b >>= 1; } return r; };
+  (() => {
+    const rl = (x, n) => ((x << n) | (x >> (8 - n))) & 0xff;
+    let p = 1, q = 1;
+    do {
+      p = p ^ ((p << 1) & 0xff) ^ (p & 0x80 ? 0x1b : 0);
+      q ^= q << 1; q &= 0xff; q ^= q << 2; q &= 0xff; q ^= q << 4; q &= 0xff;
+      if (q & 0x80) q ^= 0x09;
+      SBOX[p] = q ^ rl(q, 1) ^ rl(q, 2) ^ rl(q, 3) ^ rl(q, 4) ^ 0x63;
+    } while (p !== 1);
+    SBOX[0] = 0x63;
+    for (let i = 0; i < 256; i++) INV[SBOX[i]] = i;
+  })();
+
+  function makeAes(key) {
+    const rk = new Uint8Array(176);
+    rk.set(key);
+    for (let i = 16, rc = 1; i < 176; i += 4) {
+      let t = [rk[i - 4], rk[i - 3], rk[i - 2], rk[i - 1]];
+      if (i % 16 === 0) { t = [SBOX[t[1]] ^ rc, SBOX[t[2]], SBOX[t[3]], SBOX[t[0]]]; rc = xt(rc); }
+      for (let j = 0; j < 4; j++) rk[i + j] = rk[i - 16 + j] ^ t[j];
+    }
+    const addK = (s, r) => { for (let i = 0; i < 16; i++) s[i] ^= rk[r * 16 + i]; };
+    const shift = (s, inv) => {
+      const o = s.slice();
+      for (let r = 1; r < 4; r++) for (let c = 0; c < 4; c++) s[r + 4 * (inv ? (c + r) % 4 : c)] = o[r + 4 * (inv ? c : (c + r) % 4)];
+    };
+    const sub = (s, box) => { for (let i = 0; i < 16; i++) s[i] = box[s[i]]; };
+    const mix = (s, m) => {
+      for (let c = 0; c < 4; c++) {
+        const a = s.slice(4 * c, 4 * c + 4);
+        for (let r = 0; r < 4; r++) s[4 * c + r] = gm(a[0], m[(4 - r) % 4]) ^ gm(a[1], m[(5 - r) % 4]) ^ gm(a[2], m[(6 - r) % 4]) ^ gm(a[3], m[(7 - r) % 4]);
+      }
+    };
+    return {
+      encrypt(b) {
+        const s = Uint8Array.from(b);
+        addK(s, 0);
+        for (let r = 1; r < 10; r++) { sub(s, SBOX); shift(s, 0); mix(s, [2, 3, 1, 1]); addK(s, r); }
+        sub(s, SBOX); shift(s, 0); addK(s, 10);
+        for (let i = 0; i < 16; i++) b[i] = s[i];
+      },
+      decrypt(b) {
+        const s = Uint8Array.from(b);
+        addK(s, 10);
+        for (let r = 9; r > 0; r--) { shift(s, 1); sub(s, INV); addK(s, r); mix(s, [14, 11, 13, 9]); }
+        shift(s, 1); sub(s, INV); addK(s, 0);
+        for (let i = 0; i < 16; i++) b[i] = s[i];
+      }
+    };
+  }
+
+  function crc16(bytes) {
+    let crc = 0xffff;
+    for (const b of bytes) {
+      crc ^= b & 255;
+      for (let i = 0; i < 8; i++) crc = crc & 1 ? (crc >> 1) ^ 0xa001 : crc >> 1;
+    }
+    return crc;
+  }
+
+  // ================= sending =================
+  let wMode = 'resp';
+  async function writeBlock(buf) {
+    if (wMode === 'noresp' && wChar.writeValueWithoutResponse) await wChar.writeValueWithoutResponse(buf);
+    else if (wChar.writeValueWithResponse) await wChar.writeValueWithResponse(buf);
+    else await wChar.writeValue(buf);
+  }
+  async function sendMessage(sendSN, ackSN, cmd, data) {
+    let msg = [];
+    for (const n of [sendSN, ackSN]) msg.push((n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+    msg.push((cmd >> 8) & 255, cmd & 255, (data.length >> 8) & 255, data.length & 255);
+    msg = msg.concat(data);
+    const crc = crc16(msg);
+    msg.push(crc >> 8, crc & 255);
+    for (let i = 0; i < msg.length; i += 16) {
+      const block = msg.slice(i, i + 16);
+      while (block.length < 16) block.push(1);
+      aes.encrypt(block);
+      const out = i === 0 ? [0x00, msg.length + 2, 0x40, 0x00] : [i >> 4];
+      await writeBlock(new Uint8Array(out.concat(block)).buffer);
+    }
+    log('TX ' + hex(msg));
+  }
+  function sendHello(mac) {
+    const content = [0, 0, 0, 0, 0, 33, 8, 0, 1, 5, 90];
+    for (let i = 5; i >= 0; i--) content.push(parseInt(mac.slice(i * 3, i * 3 + 2), 16));
+    return sendMessage(1, 0, 1, content);
+  }
+  const sendAck = (sendSN, ackSN, cmd) => sendMessage(sendSN, ackSN, cmd, [0]);
+
+  // ================= drive the page's timer (variables come from app.js) =================
+  const msg = t => { const m = document.querySelector('#msg'); if (m) m.textContent = t; };
+  const BT = {
+    hold() {
+      if (view || mode === 'run') return;
+      holding = true; ready = false;
+      tm.className = 'hold';
+    },
+    ready() {
+      if (view || mode === 'run') return;
+      holding = true; ready = true;
+      tm.className = 'ready';
+    },
+    run() {
+      if (view || mode === 'run') return;
+      holding = ready = false;
+      clearTimeout(ht);
+      pen = 0;
+      mode = 'run';
+      t0 = performance.now();
+      ibLabel(); ib.hidden = false;
+      tm.className = '';
+      msg('');
+      tick();
+    },
+    stop(ms) {
+      if (view) return;
+      const now = Date.now();
+      if (ms === lastT && now - lastAt < 10000) return;
+      lastT = ms; lastAt = now;
+      holding = ready = false;
+      clearTimeout(ht);
+      const p = mode === 'run' ? pen : 0;
+      mode = 'idle';
+      ib.hidden = true;
+      tm.className = '';
+      add(ms, p, 'bt');
+    },
+    idle() {
+      if (mode === 'run') return;
+      holding = ready = false;
+      tm.className = '';
+    }
+  };
+  window.BT = BT;
+
+  // ================= receiving =================
+  const NAMES = ['IDLE', 'INSPECTION', 'GET_SET', 'RUNNING', 'FINISHED', 'STOPPED', 'DISCONNECT'];
+  function onState(state, ms) {
+    clearTimeout(readyT);
+    log('STATE ' + (NAMES[state] || state) + (ms ? ' ' + ms + ' ms' : ''));
+    if (state === 2) {                       // hands on the pads
+      BT.hold();
+      readyT = setTimeout(BT.ready, (typeof S !== 'undefined' && S.set && S.set.hold) || 300);
+    } else if (state === 3) BT.run();        // hands lifted, running
+    else if (state === 4) BT.stop(ms);       // stopped: ms = final time
+    else if (state === 0 || state === 5 || state === 6) BT.idle();
+  }
+
+  function handlePayload(data) {
+    const len = (data[10] << 8) | data[11];
+    const chk = data.slice(0, len + 12).concat([data[len + 13], data[len + 12]]);
+    if (crc16(chk) !== 0) { log('crc error'); return; }
+    const sendSN = ((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]) >>> 0;
+    const ackSN = ((data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7]) >>> 0;
+    const cmd = (data[8] << 8) | data[9];
+    const d = data.slice(12, len + 12);
+    if (cmd !== 0x1003) { log('cmd 0x' + cmd.toString(16) + ' ' + hex(d)); return; }
+    const u32 = o => ((d[o] << 24) | (d[o + 1] << 16) | (d[o + 2] << 8) | d[o + 3]) >>> 0;
+    if (d[0] === 1 && d[1] === 1) {          // record: final solve time
+      const ms = u32(8), insp = u32(12);
+      log('RECORD ' + ms + ' ms (inspection ' + insp + ' ms)');
+      if (Date.now() - lastAt > 10000) BT.stop(ms); // not already saved by the FINISHED state
+      sendAck(ackSN + 1, sendSN, 0x1003).catch(e => log('ack failed: ' + e.message));
+    } else if (d[0] === 4 && d[1] === 4) {   // timer state
+      onState(d[4], u32(5));
+    } else log('unknown ' + hex(d));
+  }
+
+  function onPacket(ev) {
+    got++;
+    const v = ev.target.value;
+    let m = Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    log('RX ' + hex(m));
+    try {
+      if (m[0] !== waitPkg) { waitPkg = 0; payloadData = []; if (m[0] !== 0) return; }
+      if (m[0] === 0) { payloadLen = m[1] - 2; m = m.slice(4); } else m = m.slice(1);
+      for (let i = 0; i < m.length; i += 16) {
+        const block = m.slice(i, i + 16);
+        if (block.length < 16) { waitPkg = 0; payloadData = []; return; }
+        aes.decrypt(block);
+        payloadData = payloadData.concat(block);
+      }
+      if (payloadData.length < payloadLen) { waitPkg++; return; }
+      const data = payloadData.slice(0, payloadLen);
+      waitPkg = 0; payloadData = [];
+      handlePayload(data);
+    } catch (e) { log('parse error: ' + e.message); }
+  }
+
+  // ================= connecting =================
+  // The hello needs the timer's real MAC. Chrome can read it from the advertisement; if not, ask.
+  function macFromAdverts(device) {
+    return new Promise(res => {
+      if (!device.watchAdvertisements) { log('watchAdvertisements: not supported by this browser'); return res(null); }
+      const ac = new AbortController();
+      let n = 0, mac = null, fin = false;
+      const finish = () => {
+        if (fin) return; fin = true;
+        clearTimeout(to); device.removeEventListener('advertisementreceived', h);
+        try { ac.abort(); } catch (e) {}
+        log('advertisements seen: ' + n);
+        res(mac);
+      };
+      const h = e => {
+        n++;
+        const ids = [];
+        if (e.manufacturerData) e.manufacturerData.forEach((dv, id) => ids.push('0x' + id.toString(16) + ': ' + hex(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength))));
+        if (n <= 3) log('ADV name=' + e.name + ' rssi=' + e.rssi + ' mfr=' + (ids.join(' | ') || 'none'));
+        const dv = e.manufacturerData && e.manufacturerData.get(CIC);
+        if (dv && dv.byteLength >= 6 && !mac) {
+          const a = [];
+          for (let i = 5; i >= 0; i--) a.push(dv.getUint8(i).toString(16).padStart(2, '0'));
+          mac = a.join(':');
+          finish();
+        }
+      };
+      const to = setTimeout(finish, 6000);
+      device.addEventListener('advertisementreceived', h);
+      device.watchAdvertisements({ signal: ac.signal }).then(() => log('watching advertisements...')).catch(e => { log('watchAdvertisements failed: ' + e.name + ': ' + e.message); finish(); });
+    });
+  }
+  function defaultMac(name) {
+    const m = /^QY-(?:Timer|Adapter).*-([0-9A-Fa-f]{4})$/.exec(name || '');
+    return m ? (name.startsWith('QY-Adapter') ? 'CC:A8' : 'CC:A1') + ':00:00:' + m[1].slice(0, 2).toUpperCase() + ':' + m[1].slice(2, 4).toUpperCase() : '';
+  }
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
   const btn = () => document.querySelector('[data-a="bt"]');
   function setStatus(text) {
     const b = btn(); if (!b) return;
@@ -39,88 +275,64 @@
     b.classList.toggle('on', text === 'Connected');
   }
 
-  // ---------- hooks that drive the big timer on the page ----------
-  const inView = () => typeof view !== 'undefined' && view;
-  const BT = {
-    hold()  { clearInterval(runTimer); tm.className = 'hold'; },
-    ready() { clearInterval(runTimer); tm.className = 'ready'; },
-    run() {
-      const t0 = performance.now();
-      clearInterval(runTimer);
-      tm.className = '';
-      runTimer = setInterval(() => { tm.textContent = F(performance.now() - t0, S.set.dec); }, 30);
-    },
-    stop(ms) {
-      clearInterval(runTimer);
-      tm.className = '';
-      if (inView()) return;
-      const now = Date.now();
-      if (ms === lastT && now - lastAt < 5000) return; // same solve sent twice
-      lastT = ms; lastAt = now;
-      add(ms, 0, 'bt');
-    }
-  };
-  window.BT = BT;
-
-  // ---------- packet parser: TO BE FILLED IN once real packets are known ----------
-  function parse(bytes, uuid) {
-    if (GUESS && bytes.length >= 4) {
-      const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      let t = dv.getUint32(bytes.length - 4, true);
-      if (t < 50 || t > 3600000) t = dv.getUint32(bytes.length - 4, false);
-      if (t >= 50 && t < 3600000) BT.stop(t);
-    }
-    // real version: decide hold / ready / run / stop from the bytes, e.g.
-    //   if (bytes[X] === 1) BT.hold(); else if (...) BT.ready(); else if (...) BT.run(); else if (...) BT.stop(ms);
-  }
-
-  function onPacket(ev) {
-    got++;
-    const v = ev.target.value;
-    const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-    log('RX ' + ev.target.uuid.slice(0, 8) + ': ' + [...bytes].map(b => b.toString(16).padStart(2, '0')).join(' '));
-    parse(bytes, ev.target.uuid);
-  }
-
   async function connect() {
-    if (!navigator.bluetooth) { alert('Web Bluetooth needs Chrome or Edge (desktop or Android) over HTTPS.'); return; }
+    if (!navigator.bluetooth) {
+      alert('Web Bluetooth is not supported here. Use Chrome or Edge on desktop or Android (not Firefox, Safari or iPhone) over HTTPS.');
+      return;
+    }
     try {
-      got = 0;
+      got = 0; waitPkg = 0; payloadData = [];
+      aes = makeAes(new Uint8Array(16).fill(0x77));
       setStatus('Scanning...');
-      dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: OPTIONAL });
-      log('Device: ' + (dev.name || '(no name)'));
-      dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); BT.hold(); tm.className = ''; dev = null; });
+      const reqOpts = { filters: [{ namePrefix: 'QY-Timer' }, { namePrefix: 'QY-Adapter' }], optionalServices: [SERVICE] };
+      try {
+        // ask for a range of company ids so the log can show which one the V2 timer really uses
+        dev = await navigator.bluetooth.requestDevice({ ...reqOpts, optionalManufacturerData: Array.from({ length: 256 }, (_, i) => 0x0500 + i) });
+      } catch (e) {
+        if (e.name === 'NotFoundError') throw e;
+        log('requestDevice with many ids failed (' + e.message + '), retrying with one id');
+        dev = await navigator.bluetooth.requestDevice({ ...reqOpts, optionalManufacturerData: [CIC] });
+      }
+      log('Device: ' + dev.name);
+      dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; });
 
       setStatus('Connecting...');
-      const server = await dev.gatt.connect();
-      const services = await server.getPrimaryServices();
-      if (!services.length) log('No services visible (UUID not in optionalServices?)');
+      let mac = await macFromAdverts(dev);
+      log(mac ? 'MAC from advertisement: ' + mac : 'MAC not available from advertisement');
+      if (!mac) {
+        mac = lsGet('qiyiMac') || defaultMac(dev.name);
+        const ans = prompt('Timer MAC address (like CC:A1:00:00:B4:B2). Press OK to use the suggestion.', mac);
+        if (ans && /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(ans.trim())) mac = ans.trim().toUpperCase();
+        log('Using MAC ' + mac);
+      }
+      if (!mac) throw new Error('No MAC address for the timer.');
 
-      for (const s of services) {
-        log('SERVICE ' + s.uuid);
-        let chars = [];
-        try { chars = await s.getCharacteristics(); } catch (e) { log('  cannot list: ' + e.message); continue; }
-        for (const c of chars) {
-          const p = c.properties, props = ['read', 'write', 'writeWithoutResponse', 'notify', 'indicate'].filter(k => p[k]).join(',');
-          log('  CHAR ' + c.uuid + ' [' + props + ']');
-          if (p.read) {
-            try { const r = await c.readValue(); log('    value: ' + [...new Uint8Array(r.buffer)].map(b => b.toString(16).padStart(2, '0')).join(' ')); } catch (e) {}
-          }
-          if (p.notify || p.indicate) {
-            try { await c.startNotifications(); c.addEventListener('characteristicvaluechanged', onPacket); log('    subscribed'); }
-            catch (e) { log('    subscribe failed: ' + e.message); }
-          }
-        }
+      const server = await dev.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE);
+      const chars = await service.getCharacteristics();
+      wChar = chars.find(c => c.uuid === CH_WRITE);
+      rChar = chars.find(c => c.uuid === CH_READ);
+      if (!wChar || !rChar) throw new Error('Timer characteristics not found.');
+      rChar.addEventListener('characteristicvaluechanged', onPacket);
+      await rChar.startNotifications();
+      log('Subscribed. write props: ' + ['write', 'writeWithoutResponse'].filter(k => wChar.properties[k]).join(','));
+      for (const m of ['resp', 'noresp']) {
+        wMode = m;
+        log('Sending hello (' + (m === 'resp' ? 'write with response' : 'write without response') + ')');
+        await sendHello(mac);
+        for (let i = 0; i < 35 && !got; i++) await new Promise(r => setTimeout(r, 100));
+        if (got) { log('Timer answered to the "' + m + '" hello.'); lsSet('qiyiMac', mac); break; }
       }
       setStatus('Connected');
-      log('Now touch the timer pads / do a solve. Packets appear as RX lines.');
-      setTimeout(() => { if (dev && !got) log('NO PACKETS after 8 s. The timer may need a handshake (write) or is connected to another app.'); }, 8000);
+      log(got ? 'Ready. Touch the pads and do a solve.' : 'NO REPLY to either hello. MAC used: ' + mac);
     } catch (err) {
       setStatus('Bluetooth');
       log('Error: ' + err.message);
       if (err.name !== 'NotFoundError') alert('Bluetooth failed: ' + err.message);
     }
   }
+
+  BT._t = { makeAes, crc16, handlePayload, onPacket, sendMessage, setAes: a => { aes = a; }, setW: w => { wChar = w; } };
 
   document.addEventListener('DOMContentLoaded', () => {
     const b = btn(); if (!b) return;
