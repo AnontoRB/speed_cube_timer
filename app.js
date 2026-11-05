@@ -61,7 +61,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
-  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72
+  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null
 });
 
 let WALL = '';
@@ -194,6 +194,8 @@ function applyTheme() {
   const dim = Math.max(0, Math.min(90, s.wallDim ?? 45)), tint = `color-mix(in srgb, ${s.bg} ${dim}%, transparent)`;
   document.documentElement.style.backgroundImage = WALL ? `linear-gradient(${tint}, ${tint}), url("${WALL}")` : '';
   r.setProperty('--cop', Math.max(0, Math.min(100, s.cardOp ?? 72)) + '%');
+  if (s.sideOp == null) s.sideOp = s.cardOp ?? 72;   // first time: same look as the other boxes
+  r.setProperty('--sop', Math.max(0, Math.min(100, s.sideOp)) + '%');
   document.body.classList.toggle('has-wall', !!WALL);
 }
 
@@ -1199,7 +1201,7 @@ function placeTools() {
     $('#scw').prepend(scrBox);
     scrBox.after(toolsBox);
   }
-  for (const b of menuBtns) (w ? sideMenu : menuBox).appendChild(b);
+  for (const b of menuBtns) (w && b.dataset.a !== 'set' ? sideMenu : menuBox).appendChild(b);   // wide: Settings stays in the top bar, right of the date
   placeSide();
 }
 // Side bar off (wide layout): the same panel moves into the timer area and floats on its right side.
@@ -1562,7 +1564,7 @@ function settings() {
         g = (t, h) => `<section class="dcard sg"><h4>${t}</h4>${h}</section>`;
   open(`<h3>Settings</h3>
 ${g('Theme and colors', sl('theme', 'Theme', [['dark', 'Dark'], ['light', 'Light'], ['custom', 'Custom']]) + col('bg', 'Background') + col('fg', 'Text') + col('ac', 'Accent') + col('rd', 'Ready color (green)') + col('hd', 'Hold color (red)'))}
-${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden><p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>' + r('wallDim', 'Darkness over the picture (%)', 0, 90, 5) + r('cardOp', 'Opacity of the boxes on the home screen (%)', 0, 100, 5))}
+${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden><p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>' + r('wallDim', 'Darkness over the picture (%)', 0, 90, 5) + r('cardOp', 'Opacity of the boxes on the home screen (%)', 0, 100, 5) + r('sideOp', 'Opacity of the side panel (%)', 0, 100, 5))}
 ${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show the right side bar (off = its parts appear inside the timer area)'))}
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}

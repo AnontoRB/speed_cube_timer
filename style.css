@@ -845,3 +845,11 @@ body.no-parts.wide.no-side #side, body.no-parts #side { display: none; }
 /* 32. "Turn all on / off" button in the cube window: sky blue, so it is clearly different from the part buttons */
 dialog .cubes button.all { color: #7dd3fc; border-color: color-mix(in srgb, #38bdf8 55%, var(--bg)); background: color-mix(in srgb, #38bdf8 14%, var(--card)); }
 dialog .cubes button.all:hover { background: color-mix(in srgb, #38bdf8 24%, var(--card)); }
+
+/* 33. SIDE PANEL OPACITY (Settings > Wallpaper). With a wallpaper the panel and everything in it use --sop instead of --cop. */
+body.has-wall #side { --card: color-mix(in srgb, color-mix(in srgb, var(--fg) 10%, var(--bg)) var(--sop, 72%), transparent); }
+
+/* 34. WIDE LAYOUT: the Settings button sits in the top bar, right of the date (icon only) */
+body.wide header .menu > button[data-a="set"] { display: flex; align-items: center; justify-content: center; padding: 0 12px; }
+body.wide header .menu > button[data-a="set"] .tx { display: none; }
+body.wide header .menu > button[data-a="set"] .ic { display: block; }
