@@ -242,9 +242,9 @@ function rstrip(d) {
 }
 
 // The list of finished rounds (side column on desktop, Today popup on phones).
-function roundsHtml(d) {
+function roundsHtml(d, max) {
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).join('');
+  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).slice(0, max || Infinity).join('');
 }
 
 function render() {
@@ -268,7 +268,7 @@ function render() {
     $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
   }
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  $('#rd').innerHTML = roundsHtml(d);
+  $('#rd').innerHTML = roundsHtml(d);   // all rounds, newest first; the side column scrolls (about 5 rounds are visible at once)
 }
 
 // Rebuild finished-round records from the solves, so deleting/restoring a time keeps them correct.
@@ -937,9 +937,18 @@ function miniPanel(d) {
     `<div class="mx">${weekHtml(key)}${tilesHtml()}</div>`;
 }
 
-// Last 7 days as small bars (goal reached = green).
+// Opens a day (same as "Open this day" in the calendar): today = normal mode, any other day = read-only view.
+function openDay(k) {
+  if (!k) return;
+  view = k === S.day ? null : k;
+  dl.close();
+  fresh();
+}
+
+// Last 7 days as small bars (goal reached = green). The week always ends today, so the bars stay put when you click one;
+// the day you are looking at is marked (blue letter). Click a bar to open that day.
 function weekHtml(key) {
-  const gl = S.set.goal, cnt = k => cubeDay(k), days = [], b0 = new Date(key + 'T00:00:00');
+  const gl = S.set.goal, cnt = k => cubeDay(k), days = [], b0 = new Date((S.day || dkey(Date.now())) + 'T00:00:00');
   for (let i = 6; i >= 0; i--) {
     const d = new Date(b0);
     d.setDate(d.getDate() - i);
@@ -948,27 +957,44 @@ function weekHtml(key) {
   }
   if (!days.some(y => y.c)) return '';
   const mx = Math.max(gl || 0, ...days.map(y => y.c), 1);
-  return `<div class="wk">${days.map(y => `<div class="${gl && y.c >= gl ? 'ok' : ''}${y.k === key ? ' td' : ''}" title="${y.k}: ${plural(y.c, 'solve')}"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
+  return `<div class="wk">${days.map(y => `<div class="${gl && y.c >= gl ? 'ok' : ''}${y.k === key ? ' td' : ''}" data-a="wkday" data-k="${y.k}" role="button" tabindex="0" title="${y.k}: ${plural(y.c, 'solve')} · click to open this day"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
 }
 
-// PBs, DNFs, solving time and solves per hour for the shown day.
+// Screen time, DNFs, solving time and solves per hour for the shown day.
+// Screen time = how long this page was in front (tab visible and window focused), counted per day for the whole site.
 function tilesHtml() {
-  const L = D().solves;
-  if (!L.length) return '';
+  const L = D().solves, key = view || S.day || dkey(Date.now()), scrMs = (S.stime || {})[key] || 0,
+        scrTile = `<div><small>Screen time</small><b${view ? '' : ' class="stv"'}>${dur(scrMs)}</b></div>`;
+  if (!L.length) return `<div class="tsum">${scrTile}</div>`;
   const tt = L.reduce((a, y) => a + (y.t || 0), 0), span = L[L.length - 1].d - L[0].d, pace = span >= 3e5 ? Math.round((L.length - 1) / (span / 36e5)) : 0;
-  return `<div class="tsum"><div><small>PBs ★</small><b>${L.filter(y => y.pb).length}</b></div><div><small>DNFs</small><b>${L.filter(y => y.p === 'D').length}</b></div><div><small>Solving time</small><b>${dur(tt)}</b></div><div><small>Solves/hour</small><b>${pace || '–'}</b></div></div>`;
+  return `<div class="tsum">${scrTile}<div><small>DNFs</small><b>${L.filter(y => y.p === 'D').length}</b></div><div><small>Solving time</small><b>${dur(tt)}</b></div><div><small>Solves/hour</small><b>${pace || '–'}</b></div></div>`;
 }
+
+// Counts the time the page is in front. Ticks once a second; a gap over 5 s (computer asleep) is ignored.
+let stLast = Date.now(), stSaved = 0;
+setInterval(() => {
+  const now = Date.now(), dt = now - stLast;
+  stLast = now;
+  if (document.visibilityState !== 'visible' || !document.hasFocus() || dt <= 0 || dt > 5000) return;
+  S.stime = S.stime || {};
+  const k = dkey(now);
+  S.stime[k] = (S.stime[k] || 0) + dt;
+  if (!view) document.querySelectorAll('.stv').forEach(el => { el.textContent = dur(S.stime[k]); });
+  if (now - stSaved > 15000) { stSaved = now; save(); }
+}, 1000);
 
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
 function goalPanel() {
   const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => cubeDay(k),
         gc = cnt(key), sk = view ? 0 : streak(), bestSk = Math.max(recOf(S.cur).days || 0, sk), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
-  let h = '';
-  if (gl) h += `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
+  let g = '', h = '';
+  if (gl) g = `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
   if (sk > 1) h += `<div class="sk">🔥 ${sk}-day streak${bestSk > sk ? ` <small>(best ${bestSk})</small>` : ''}</div>`;
   h += weekHtml(key);
-  // only this box (goal, streak, week) opens the progress graph; the tiles below do not
-  return `<div class="gbtn" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${h}</div>` + tilesHtml();
+  // only the daily goal box (bar + numbers) opens the progress graph and has the border; streak, week and tiles are outside it
+  // (with no daily goal set, the streak/week part becomes the button so the graph can still be opened)
+  const btn = html => `<div class="gbtn" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${html}</div>`;
+  return (g ? btn(g) + h : btn(h)) + tilesHtml();
 }
 
 // Detail lines for one solve in its popup: PB, rank that day, percentile, penalties.
@@ -1509,6 +1535,8 @@ dl.addEventListener('click', e => {
   if (e.target === dl) { dl.close(); return; } // click outside the window (on the dark backdrop)
   const rr = e.target.closest('[data-a=round]');
   if (rr) { openRound(+rr.dataset.n); return; }
+  const wd = e.target.closest('[data-a=wkday]');
+  if (wd) { openDay(wd.dataset.k); return; }
   const b = e.target.closest('button');
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
@@ -1610,6 +1638,7 @@ document.addEventListener('click', e => {
   else if (a === 'meth') methods();
   else if (a === 'solve') openSolve(+b.dataset.i);
   else if (a === 'round') openRound(+b.dataset.n);
+  else if (a === 'wkday' && mode === 'idle') openDay(b.dataset.k);
   else if (a === 'mini' && mode === 'idle') todayInfo();
   else if (a === 'progress' && mode === 'idle') progress();
   else if (a === 'x' && mode === 'idle') {
@@ -1727,6 +1756,8 @@ function mergeState(J) {
     M.rec.c[id] = { ...b, ...a, streak: Math.max(a.streak || 0, b.streak || 0), days: Math.max(a.days || 0, b.days || 0) };
   }
   M.rec.days = Math.max(M.rec.days || 0, (J.rec && J.rec.days) || 0);
+  M.stime = M.stime || {};
+  for (const k in J.stime || {}) M.stime[k] = Math.max(M.stime[k] || 0, J.stime[k] || 0);
   return M;
 }
 

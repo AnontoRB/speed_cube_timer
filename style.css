@@ -106,6 +106,13 @@ body.no-rs #rs, body.no-st #st, body.no-side #side { display: none; }
 .wk .ok i { background: var(--rd); }
 .wk small { font-size: .7em; }
 .wk .td small { color: var(--ac); font-weight: 700; }
+/* side column: tall week bars that fill the space the long rounds list used to take (the rounds list shows only the last 3) */
+/* (laptop/desktop sizes for the week bars and the rounds list are in section 26 at the end of this file) */
+/* each bar is a button that opens that day */
+.wk > div[data-k] { cursor: pointer; border-radius: 6px; }
+.wk > div[data-k]:hover i { filter: brightness(1.3); }
+.wk > div[data-k]:hover small { color: var(--fg); }
+.wk > div[data-k]:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 .tsum { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
 .tsum div { background: var(--card); border-radius: var(--rad, 8px); padding: 5px 8px; }
 .tsum small { display: block; }
@@ -777,4 +784,15 @@ body.wide header #scr { flex: 1 1 0; min-width: 0; min-height: 0; max-height: 3.
   #st small { color: color-mix(in srgb, #e74c3c 35%, var(--mut)); }
   #rs div { background: color-mix(in srgb, var(--ac, #5b9bff) 6%, var(--card)); border-top-color: color-mix(in srgb, var(--ac, #5b9bff) 60%, var(--card)); }
   #rs small { color: color-mix(in srgb, var(--ac, #5b9bff) 35%, var(--mut)); }
+}
+
+/* 26. SIDE COLUMN: BIG WEEK BARS + ROUNDS LIST WITH ABOUT 5 ROUNDS VISIBLE ----
+   Laptop/desktop. The rounds list always gets room for about 5 rounds and scrolls for the rest
+   (newest on top). The week bars are stretched to fill whatever height is left, so they
+   grow on tall windows and shrink on short ones. */
+@media (min-width: 801px) and (min-height: 521px) {
+  #side #goal { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #side #goal .wk { flex: 1 1 0; min-height: 64px; }
+  #side #goal .wk .bar { flex: 1 1 0; height: auto; min-height: 36px; }
+  #side #rd { flex: 0 1 19em; min-height: 8em; }
 }
