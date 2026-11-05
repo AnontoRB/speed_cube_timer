@@ -810,3 +810,38 @@ body.run #rdbar { visibility: hidden; }
   #rd::-webkit-scrollbar { display: none; }
   #rdbar.on { display: block; }
 }
+
+/* 28. HIDE ONE PART OF THE SIDE PANEL (buttons in the "Choose a cube" window) */
+body.no-menu #sidemenu { display: none; }
+body.no-goal #side .gg { display: none; }
+body.no-sk #side .sk { display: none; }
+body.no-wk #side .wk { display: none; }
+body.no-tl #side .tsum { display: none; }
+body.no-rd #side #rd, body.no-rd #rdbar { display: none; }
+
+/* 29. Rounds fill the free space when the week chart (the part that stretches) is hidden; no empty box when the whole goal area is hidden */
+@media (min-width: 801px) and (min-height: 521px) {
+  body.no-wk #side #goal { flex: 0 0 auto; }
+  body.no-wk #side #rd { flex: 1 1 0; }
+  body.no-goal.no-sk.no-wk.no-tl #side #goal { display: none; }
+}
+
+/* 30. WEEK BARS: fixed size. They no longer stretch to fill the side column; the rounds list takes the free space instead. */
+@media (min-width: 801px) and (min-height: 521px) {
+  #side #goal { flex: 0 0 auto; }
+  #side #goal .wk { flex: none; min-height: 0; }
+  #side #goal .wk .bar { flex: none; height: 38px; min-height: 0; }
+  #side #rd { flex: 1 1 0; }
+}
+
+/* 31. BAR OFF (wide layout): the highlighted parts float inside the timer area, on its right side.
+   app.js moves #side into #tz; clicks on it do not start the timer. Nothing on if every part is off. */
+body.wide #tz { position: relative; }
+body.wide.no-side #side { display: flex; }
+body.wide.no-side #tz #side { position: absolute; top: 10px; right: 10px; bottom: 10px; left: auto; width: clamp(200px, 24%, 300px); margin: 0; z-index: 4; }
+body.run #tz #side { visibility: hidden; }
+body.no-parts.wide.no-side #side, body.no-parts #side { display: none; }
+
+/* 32. "Turn all on / off" button in the cube window: sky blue, so it is clearly different from the part buttons */
+dialog .cubes button.all { color: #7dd3fc; border-color: color-mix(in srgb, #38bdf8 55%, var(--bg)); background: color-mix(in srgb, #38bdf8 14%, var(--card)); }
+dialog .cubes button.all:hover { background: color-mix(in srgb, #38bdf8 24%, var(--card)); }

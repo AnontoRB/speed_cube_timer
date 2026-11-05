@@ -61,7 +61,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
-  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, wallDim: 45, cardOp: 72
+  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72
 });
 
 let WALL = '';
@@ -184,6 +184,10 @@ function applyTheme() {
   document.body.classList.toggle('no-rs', !s.showRs);
   document.body.classList.toggle('no-st', !s.showSt);
   document.body.classList.toggle('no-side', !s.showSide);
+  for (const [k, c] of [['showMenu', 'no-menu'], ['showGoal', 'no-goal'], ['showSk', 'no-sk'], ['showWk', 'no-wk'], ['showTl', 'no-tl'], ['showRd', 'no-rd']]) document.body.classList.toggle(c, s[k] === false);
+  document.body.classList.toggle('no-parts', ['showMenu', 'showGoal', 'showSk', 'showWk', 'showTl', 'showRd'].every(k => s[k] === false));
+  if (window.placeSide) window.placeSide();   // docked bar, or inside the timer area
+  if (window.rdSync) window.rdSync();   // the custom rounds scrollbar must follow the layout change
   r.setProperty('--fs', s.fs + 'px');
   r.setProperty('--ss', s.ss + 'px');
   $('#scr').style.display = s.showScr ? '' : 'none';
@@ -993,8 +997,8 @@ function goalPanel() {
   h += weekHtml(key);
   // only the daily goal box (bar + numbers) opens the progress graph and has the border; streak, week and tiles are outside it
   // (with no daily goal set, the streak/week part becomes the button so the graph can still be opened)
-  const btn = html => `<div class="gbtn" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${html}</div>`;
-  return (g ? btn(g) + h : btn(h)) + tilesHtml();
+  const btn = (html, c = '') => `<div class="gbtn ${c}" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${html}</div>`;
+  return (g ? btn(g, 'gg') + h : btn(h)) + tilesHtml();
 }
 
 // Detail lines for one solve in its popup: PB, rank that day, percentile, penalties.
@@ -1196,7 +1200,16 @@ function placeTools() {
     scrBox.after(toolsBox);
   }
   for (const b of menuBtns) (w ? sideMenu : menuBox).appendChild(b);
+  placeSide();
 }
+// Side bar off (wide layout): the same panel moves into the timer area and floats on its right side.
+function placeSide() {
+  const side = $('#side'), tzEl = $('#tz'), wrap = $('#wrap'), inside = wideMq.matches && !S.set.showSide;
+  if (inside && side.parentNode !== tzEl) tzEl.appendChild(side);
+  else if (!inside && side.parentNode !== wrap) wrap.appendChild(side);
+  if (window.rdSync) window.rdSync();
+}
+window.placeSide = placeSide;
 placeTools();
 wideMq.addEventListener('change', placeTools);
 
@@ -1388,7 +1401,7 @@ document.addEventListener('pointerdown', e => {
   if (dl.open) return;
   if (e.target.closest('#icancel')) return;   // the Cancel button must not stop (and save) the timer
   if (mode === 'run') { down(); return; }
-  if (e.target.closest('#tz') && !e.target.closest('button')) {
+  if (e.target.closest('#tz') && !e.target.closest('button') && !e.target.closest('#side')) {
     if (S.set.typing && !view) { if (e.target !== ti) setTimeout(() => ti.focus()); return; }
     down();
   }
@@ -1442,6 +1455,7 @@ document.addEventListener('pointerdown', e => {
   new ResizeObserver(sync).observe(side);
   new MutationObserver(sync).observe(rd, { childList: true, subtree: true });
   addEventListener('resize', sync);
+  window.rdSync = sync;
   sync();
 }
 
@@ -1516,11 +1530,19 @@ function rulesInfo() {
   dl.scrollTop = 0;
 }
 
+// Parts of the side panel. Each part is on or off. "Show side bar" (Settings) decides WHERE the parts that are on appear:
+// docked in the right bar, or (bar off) inside the timer area on its right side.
+const SIDE_PARTS = [['showMenu', 'Menu buttons'], ['showGoal', 'Daily goal'], ['showSk', 'Streak'], ['showWk', 'Week chart'], ['showTl', 'Stat tiles'], ['showRd', 'Rounds']];
+const sideOn = k => S.set[k] !== false;
+
+// Redraw the "Choose a cube" window after a click and keep it scrolled where it was (the buttons apply at once and the window stays open).
+function keepPick() { const t = dl.scrollTop; cubePicker(); dl.scrollTop = t; }
+
 function cubePicker() {
   const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${esc(c.n)}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
         all = allCubes(), std = ['2', '3', '4', '5', '6', '7'], var3 = ['oh', 'bld'], oth = ['pyra', 'skewb', 'mega'],
         grp = (t, f) => { const l = all.filter(f); return l.length ? `<h4>${t}</h4><div class="cubes">${l.map(one).join('')}</div>` : ''; };
-  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('One-handed and blindfolded', c => var3.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p>`);
+  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('One-handed and blindfolded', c => var3.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p><h4>Side panel</h4><div class="row btns"><button data-a="sidetoggle">${S.set.showSide ? 'Hide the right side bar' : 'Show the right side bar'}</button></div><p class="lead">Bar on: the highlighted parts appear in the bar on the right. Bar off: they appear inside the timer area, on its right side. Highlighted = shown. Click a part to hide or show it.</p><div class="cubes">${SIDE_PARTS.map(x => `<button data-a="sidepart" data-k="${x[0]}" class="${sideOn(x[0]) ? 'on' : ''}" aria-pressed="${sideOn(x[0])}">${x[1]}</button>`).join('')}<button data-a="sideall" class="all">${SIDE_PARTS.every(x => sideOn(x[0])) ? 'Turn all off' : 'Turn all on'}</button></div><p class="lead">If you hide the menu buttons, come back here to show them again.</p>`);
 }
 
 function wallPrev() {
@@ -1541,7 +1563,7 @@ function settings() {
   open(`<h3>Settings</h3>
 ${g('Theme and colors', sl('theme', 'Theme', [['dark', 'Dark'], ['light', 'Light'], ['custom', 'Custom']]) + col('bg', 'Background') + col('fg', 'Text') + col('ac', 'Accent') + col('rd', 'Ready color (green)') + col('hd', 'Hold color (red)'))}
 ${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg"><button data-a="wpick">Choose picture</button><button data-a="wrm" class="danger">Remove</button></div></div><input type="file" id="wf" accept="image/*" hidden><p class="lead">Any picture from your device. It is shrunk to fit and saved on this device only.</p>' + r('wallDim', 'Darkness over the picture (%)', 0, 90, 5) + r('cardOp', 'Opacity of the boxes on the home screen (%)', 0, 100, 5))}
-${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show side column (rounds, delete)'))}
+${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show the right side bar (off = its parts appear inside the timer area)'))}
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
 ${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
@@ -1598,13 +1620,16 @@ dl.addEventListener('click', e => {
   else if (a === 'wrm') { WALL = ''; try { localStorage.removeItem('ct2wall'); } catch (err) {} applyTheme(); wallPrev(); }
   else if (a === 'rst') { if (confirm('Reset all settings to their defaults? Your solves are not touched.')) { S.set = defSet(); applyTheme(); save(); render(); settings(); } }
   else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); fresh(); }
-  else if (a === 'cube') { S.cur = b.dataset.i; save(); fresh(); dl.close(); }
+  else if (a === 'cube') { S.cur = b.dataset.i; save(); fresh(); keepPick(); }
+  else if (a === 'sidepart') { S.set[b.dataset.k] = S.set[b.dataset.k] === false; applyTheme(); save(); render(); keepPick(); }
+  else if (a === 'sideall') { { const allOn = SIDE_PARTS.every(x => sideOn(x[0])); SIDE_PARTS.forEach(x => { S.set[x[0]] = !allOn; }); } applyTheme(); save(); render(); keepPick(); }
+  else if (a === 'sidetoggle') { S.set.showSide = !S.set.showSide; applyTheme(); save(); render(); keepPick(); }
   else if (a === 'addcube') {
     const n = $('#cn').value.trim();
     if (!n) { $('#cn').focus(); return; }
     (S.custom = S.custom || []).push({ id: 'c' + Date.now(), n, t: $('#ct').value, meth: null });
     S.cur = S.custom[S.custom.length - 1].id;
-    save(); fresh(); dl.close();
+    save(); fresh(); keepPick();
   } else if (a === 'rmcube') {
     const c = allCubes().find(x => x.id === b.dataset.i);
     if (c && confirm('Remove ' + c.n + ' and all its solves?')) {
@@ -1613,7 +1638,7 @@ dl.addEventListener('click', e => {
       for (const k in S.hist) delete S.hist[k][c.id];
       if (S.rec && S.rec.c) delete S.rec.c[c.id];
       if (S.cur === c.id) S.cur = '3';
-      save(); newScr(); tm.textContent = '0.00'; render(); cubePicker();
+      save(); newScr(); tm.textContent = '0.00'; render(); keepPick();
     }
   }
   else if (a === 'fxtest') { dl.close(); setTimeout(() => celebrate('pb', { big: true }), 150); }
