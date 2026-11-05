@@ -1396,6 +1396,55 @@ document.addEventListener('pointerdown', e => {
 
 ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (!dl.open) up(); }));
 
+// Rounds list scrollbar: a custom bar (native scrollbars give no mouse events in Firefox).
+// Double-click it to open the project page on GitHub.
+{
+  const rd = $('#rd'), side = $('#side'), W = 12;
+  const bar = document.createElement('div');
+  bar.id = 'rdbar';
+  bar.title = 'Double-click: project on GitHub';
+  bar.innerHTML = '<div id="rdthumb"></div>';
+  side.appendChild(bar);
+  const th = bar.firstChild;
+  const scale = () => (rd.offsetHeight ? rd.getBoundingClientRect().height / rd.offsetHeight : 1);   // page zoom
+  const sync = () => {
+    const over = rd.scrollHeight - rd.clientHeight, h = rd.offsetHeight;
+    if (over <= 1 || !h) { bar.classList.remove('on'); return; }
+    bar.classList.add('on');
+    bar.style.top = rd.offsetTop + 'px';
+    bar.style.left = (rd.offsetLeft + rd.offsetWidth - W) + 'px';
+    bar.style.height = h + 'px';
+    const tH = Math.max(28, h * rd.clientHeight / rd.scrollHeight);
+    th.style.height = tH + 'px';
+    th.style.transform = 'translateY(' + (rd.scrollTop / over * (h - tH)) + 'px)';
+  };
+  let drag = null;
+  th.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    e.preventDefault();
+    e.stopPropagation();
+    th.setPointerCapture(e.pointerId);
+    drag = { y: e.clientY, top: rd.scrollTop };
+  });
+  th.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const room = rd.offsetHeight - th.offsetHeight, over = rd.scrollHeight - rd.clientHeight;
+    if (room > 0) rd.scrollTop = drag.top + (e.clientY - drag.y) / scale() * over / room;
+  });
+  ['pointerup', 'pointercancel'].forEach(t => th.addEventListener(t, () => { drag = null; }));
+  bar.addEventListener('pointerdown', e => {   // click on the empty track: scroll one page toward it
+    if (e.button || e.target !== bar) return;
+    rd.scrollTop += (e.clientY < th.getBoundingClientRect().top ? -1 : 1) * rd.clientHeight * 0.9;
+  });
+  bar.addEventListener('dblclick', () => window.open('https://github.com/AnontoRB/speed_cube_timer', '_blank', 'noopener'));
+  rd.addEventListener('scroll', sync, { passive: true });
+  new ResizeObserver(sync).observe(rd);
+  new ResizeObserver(sync).observe(side);
+  new MutationObserver(sync).observe(rd, { childList: true, subtree: true });
+  addEventListener('resize', sync);
+  sync();
+}
+
 const open = h => {
   dl.innerHTML = '<div class="dc"><div class="xw"><button data-a="close" class="x" aria-label="Close" title="Close">&times;</button></div>' + h + '</div>';
   if (!dl.open) dl.showModal();

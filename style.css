@@ -796,3 +796,17 @@ body.wide header #scr { flex: 1 1 0; min-width: 0; min-height: 0; max-height: 3.
   #side #goal .wk .bar { flex: 1 1 0; height: auto; min-height: 36px; }
   #side #rd { flex: 0 1 19em; min-height: 8em; }
 }
+
+/* 27. ROUNDS LIST: CUSTOM SCROLLBAR -------------------------------
+   The native scrollbar is hidden on desktop and a custom one (#rdbar, made in app.js) replaces it,
+   because Firefox gives no mouse events on native scrollbars. Double-click it: project on GitHub. */
+#rdbar { display: none; position: absolute; z-index: 3; width: 12px; user-select: none; -webkit-user-select: none; touch-action: none; }
+#rdthumb { width: 6px; margin: 0 auto; border-radius: 3px; background: color-mix(in srgb, var(--fg) 30%, transparent); cursor: grab; touch-action: none; }
+#rdbar:hover #rdthumb, #rdthumb:active { background: color-mix(in srgb, var(--fg) 50%, transparent); }
+body.run #rdbar { visibility: hidden; }
+@media (min-width: 801px) and (min-height: 521px) {
+  #side { position: relative; }
+  #rd { scrollbar-width: none; padding-right: 14px; }
+  #rd::-webkit-scrollbar { display: none; }
+  #rdbar.on { display: block; }
+}
