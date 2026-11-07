@@ -1,0 +1,9 @@
+{
+  "name": "cubetimer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CubeTimer website with accounts and server sync",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

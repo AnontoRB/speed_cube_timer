@@ -80,6 +80,7 @@ try {
   if (j) S = { ...S, ...j, set: { ...S.set, ...j.set } };
 } catch (e) {}
 
+S.data = S.data || {};
 S.known = S.known || {};
 S.view = S.view || { m: 'cfop', t: 'ov' };
 S.hist = S.hist || {};
@@ -87,16 +88,100 @@ S.rec = S.rec || {};
 
 try { navigator.storage.persist(); } catch (e) {}
 
-let pt;
+// ---- Accounts and server sync ----
+// '' = the server that serves this page (server.js). If the website is hosted somewhere else
+// (for example GitHub Pages), put the address of your server here, e.g. 'https://cubetimer.example.com'.
+const API_BASE = '';
+const apiUrl = p => (API_BASE ? API_BASE.replace(/\/+$/, '') + '/' : '') + 'api/' + p;
+const SYNC_TXT = { off: 'Not signed in', busy: 'Syncing…', ok: 'All changes are saved on the server', err: 'Cannot reach the server. Your solves are safe on this computer and will sync later.' };
+let AUTH = null, syncSt = 'off', pt, pushing = false, pushAgain = false, retry409 = 0, LOCKED = false;
+try { AUTH = JSON.parse(localStorage.getItem('ct2auth') || 'null'); } catch (e) {}
+if (!AUTH || !AUTH.token || !AUTH.user) AUTH = null;
+if (AUTH) syncSt = 'busy';
+
+const setAuth = a => {
+  AUTH = a;
+  try { if (a) localStorage.setItem('ct2auth', JSON.stringify(a)); else localStorage.removeItem('ct2auth'); } catch (e) {}
+};
+// the server time of the last state this computer and the server agreed on (per account)
+const syncedTs = () => { try { const j = JSON.parse(localStorage.getItem('ct2sync') || 'null'); return j && AUTH && j.u === AUTH.user ? +j.ts || 0 : 0; } catch (e) { return 0; } };
+const setSyncedTs = ts => { try { localStorage.setItem('ct2sync', JSON.stringify({ u: AUTH ? AUTH.user : '', ts })); } catch (e) {} };
+
+function setSync(st) {
+  syncSt = st;
+  updateAcct();
+}
+
+function updateAcct() {
+  const b = document.querySelector('[data-a="acct"]');
+  if (b) {
+    const tx = b.querySelector('.tx');
+    if (tx) tx.textContent = AUTH ? AUTH.user : 'Log in';
+    b.title = AUTH ? 'Account: ' + AUTH.user + ' · ' + SYNC_TXT[syncSt] : 'Log in or create an account to keep your solves on every computer';
+    b.classList.toggle('on', !!AUTH);
+  }
+  const el = document.getElementById('acst');
+  if (el) el.textContent = SYNC_TXT[syncSt];
+}
+
+async function api(path, method = 'GET', body) {
+  const h = {};
+  if (body !== undefined) h['Content-Type'] = 'application/json';
+  if (AUTH) h.Authorization = 'Bearer ' + AUTH.token;
+  let r;
+  try { r = await fetch(apiUrl(path), { method, headers: h, cache: 'no-store', body: body === undefined ? undefined : JSON.stringify(body) }); }
+  catch (e) { const err = new Error('Cannot reach the server. Check your internet connection.'); err.status = 0; throw err; }
+  let j = null;
+  try { j = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    if (r.status === 401 && AUTH && path !== 'login' && path !== 'register') { setAuth(null); setSync('off'); }   // session ended
+    const err = new Error((j && j.error) || 'Server error (' + r.status + ')');
+    err.status = r.status;
+    throw err;
+  }
+  return j || {};
+}
+
+// Sends the whole state to the account shortly after every change.
 const push = () => {
-  if (!location.protocol.startsWith('http')) return;
+  if (!location.protocol.startsWith('http') || !AUTH) return;
   clearTimeout(pt);
-  pt = setTimeout(() => fetch('api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S) }).catch(() => {}), 500);
+  pt = setTimeout(doPush, 800);
 };
 
+async function doPush() {
+  if (!AUTH) return false;
+  if (pushing) { pushAgain = true; return false; }
+  pushing = true;
+  setSync('busy');
+  let ok = false;
+  try {
+    if (!S.ts) S.ts = Date.now();
+    const ts = S.ts, r = await api('state?base=' + syncedTs(), 'PUT', S);
+    setSyncedTs(r.ts || ts);
+    retry409 = 0;
+    setSync('ok');
+    ok = true;
+  } catch (e) {
+    if (e.status === 409 && ++retry409 < 4) setTimeout(pull, 0);   // the server has newer data: merge it in first
+    else setSync(AUTH ? 'err' : 'off');
+  }
+  pushing = false;
+  if (pushAgain) { pushAgain = false; push(); }
+  return ok;
+}
+
+let quotaWarned = false;
+function warnStorage() {
+  if (quotaWarned) return;
+  quotaWarned = true;
+  const m = document.getElementById('msg');
+  if (m) m.textContent = 'Warning: this browser could not save your solves on this device (storage is full). Export your data in Settings, or remove the wallpaper.';
+}
 const save = () => {
-  S.ts = Date.now();
-  try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
+  if (LOCKED) return;
+  S.ts = Math.max(Date.now(), (S.ts || 0) + 1);   // always moves forward, even if two computers' clocks differ
+  try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) { warnStorage(); }
   push();
 };
 
@@ -250,7 +335,7 @@ function rstrip(d) {
 // The list of finished rounds (side column on desktop, Today popup on phones).
 function roundsHtml(d, max) {
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.join(', ')}</div>`; }).slice(0, max || Infinity).join('');
+  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.map(esc).join(', ')}</div>`; }).slice(0, max || Infinity).join('');
 }
 
 function render() {
@@ -260,7 +345,7 @@ function render() {
         bx = (l, x) => `<div><small>${l}</small><b>${fx(x)}</b></div>`;
   rstrip(d);
   $('#st').innerHTML = bx('Best', best) + bx('Mean', mean) + bx('Current ao5', cur) + bx('Best ao5', bao) + `<div><small>Round</small><b>${S.set.auto ? d.round + ' · ' + d.solves.filter(x => x.r === d.round).length + '/5' : 'off'}</b></div>`;
-  $('#cnt').textContent = name() + ' · ' + d.solves.length + ' solves today';
+  $('#cnt').textContent = name() + ' · ' + plural(d.solves.length, 'solve') + (view ? '' : ' today');
   $('#mini').innerHTML = miniPanel(d);
   $('#dt').textContent = (view ? new Date(view + 'T00:00:00') : new Date()).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   $('#dt').classList.toggle('on', !!view);
@@ -937,7 +1022,7 @@ const streak = (id = S.cur) => {
 // Small summary in the top right corner on phones and tablets: solves today + daily goal bar.
 function miniPanel(d) {
   const gl = S.set.goal, key = view || S.day || dkey(Date.now()), gc = cubeDay(key), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
-  return `<b>${d.solves.length} solves${view ? '' : ' today'}</b>` +
+  return `<b>${plural(d.solves.length, 'solve')}${view ? '' : ' today'}</b>` +
     (gl ? `<div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} · ${pc}%${gc >= gl ? ' ✓' : ''}</small>` : '') +
     `<div class="mx">${weekHtml(key)}${tilesHtml()}</div>`;
 }
@@ -976,7 +1061,7 @@ function tilesHtml() {
 }
 
 // Counts the time the page is in front. Ticks once a second; a gap over 5 s (computer asleep) is ignored.
-let stLast = Date.now(), stSaved = 0;
+let stLast = Date.now(), stSaved = 0, stPushed = Date.now();
 setInterval(() => {
   const now = Date.now(), dt = now - stLast;
   stLast = now;
@@ -985,7 +1070,11 @@ setInterval(() => {
   const k = dkey(now);
   S.stime[k] = (S.stime[k] || 0) + dt;
   if (!view) document.querySelectorAll('.stv').forEach(el => { el.textContent = dur(S.stime[k]); });
-  if (now - stSaved > 15000) { stSaved = now; save(); }
+  if (now - stSaved > 15000) {
+    stSaved = now;
+    if (now - stPushed > 300000) { stPushed = now; save(); }   // full save (also syncs the account)
+    else if (!LOCKED) { try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {} }   // screen time alone stays on this device
+  }
 }, 1000);
 
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
@@ -1149,8 +1238,7 @@ function parseTime(str) {
     ms = (min * 60 + sec) * 1000 + +((m[3] || '').padEnd(3, '0') || 0);
   }
   if (p === 2) ms -= 2000;
-  if (!(ms > 0) && p !== 2) return null;
-  if (ms < 0) return null;
+  if (!(ms > 0)) return null;
   return { t: ms, p };
 }
 
@@ -1318,7 +1406,7 @@ const KEYACT = [
 ];
 const KEYOPEN = { cubes: 'cubes', meth: 'meth', prog: 'progress', rec: 'rec', cal: 'cal', rules: 'rules', set: 'set' };
 const keyOf = a => ((S.set.keys || {})[a]) ?? KEYACT.find(x => x[0] === a)[2],
-      actOf = cb => (KEYACT.find(x => keyOf(x[0]) === cb) || [])[0];
+      actOf = cb => cb ? (KEYACT.find(x => keyOf(x[0]) === cb) || [])[0] : undefined;
 // Same letter on any keyboard layout: built from the physical key (e.code).
 function comboOf(e) {
   const c = e.code || '';
@@ -1467,7 +1555,7 @@ const open = h => {
 };
 
 const RULES = [
-  ['a', 'New scramble for every attempt (Rust generates it).'],
+  ['a', 'New scramble for every attempt.'],
   ['a', '15 s inspection with beeps at 8 s and 12 s (can be turned off).'],
   ['a', 'Hold, wait for green, release to start. Any key or tap stops.'],
   ['a', 'Start between 15 and 17 s = +2. Past 17 s = DNF.'],
@@ -1636,6 +1724,7 @@ dl.addEventListener('click', e => {
     const c = allCubes().find(x => x.id === b.dataset.i);
     if (c && confirm('Remove ' + c.n + ' and all its solves?')) {
       S.custom = S.custom.filter(x => x.id !== c.id);
+      undoDel = undoDel.filter(u => u.ev !== c.id);
       delete S.data[c.id];
       for (const k in S.hist) delete S.hist[k][c.id];
       if (S.rec && S.rec.c) delete S.rec.c[c.id];
@@ -1653,8 +1742,9 @@ dl.addEventListener('click', e => {
     if (WALL) out.wall = WALL;
     l.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
     l.download = 'cubetimer-backup-' + dkey(Date.now()) + '.json';
+    document.body.appendChild(l);
     l.click();
-    setTimeout(() => URL.revokeObjectURL(l.href), 2000);
+    setTimeout(() => { l.remove(); URL.revokeObjectURL(l.href); }, 2000);
   } else if (a === 'imp') {
     const i = document.createElement('input');
     i.type = 'file';
@@ -1711,6 +1801,7 @@ document.addEventListener('click', e => {
   else if (a === 'keyset') { capAct = b.dataset.act; b.textContent = 'Press keys…'; }
   else if (a === 'keyreset') { S.set.keys = {}; capAct = null; save(); keyLabels(); }
   else if (a === 'set') settings();
+  else if (a === 'acct' && mode === 'idle') account();
   else if (a === 'rec' && mode === 'idle') records();
   else if (a === 'meth') methods();
   else if (a === 'solve') openSolve(+b.dataset.i);
@@ -1853,7 +1944,7 @@ function openRound(n) {
       return `<button data-a="solve" data-i="${I[k]}"><small>${ORD[k]}</small> <b>${w}</b></button>`;
     }).join('')}</div>` +
     (full ? `<div class="dtl">Best and worst are dropped (in brackets). The ao5 is the mean of the other three.</div>` : '') +
-    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace">${esc(s.s)}</span></div>`).join(''));
+    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-line">${esc(s.s)}</span></div>`).join(''));
 }
 
 migrate();
@@ -1943,33 +2034,169 @@ dl.addEventListener('change', e => {
   $('#kc').textContent = c.filter(x => x.checked).length + ' / ' + c.length + ' known';
 });
 
-// Shared saving: if the site runs with server.rs, load the newest saved data from it (works for any visitor).
-async function pull() {
-  if (!location.protocol.startsWith('http') || mode !== 'idle') return;
-  try {
-    const r = await fetch('api/state', { cache: 'no-store' });
-    if (!r.ok) return;
-    const j = await r.json();
-    if (j && j.ts > (S.ts || 0)) {
-      S = { ...S, ...j, set: { ...S.set, ...j.set } };
-      S.known = S.known || {};
-      S.view = S.view || { m: 'cfop', t: 'ov' };
-      S.hist = S.hist || {};
-      undoDel = [];
-      migrate();
-      rollover();
-      try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
-      applyTheme();
-      newScr();
-      render();
-    } else if ((S.ts || 0) > ((j && j.ts) || 0)) {
-      push();
-    }
-  } catch (e) {}
+// Everything below keeps this computer and the account on the server in step.
+// Rules: only changes made on one side -> the newer side wins. Changes on both sides -> they are merged
+// (no solve is lost or added twice; a solve deleted on one side can come back in that rare case).
+function afterSwap(merged) {
+  S.known = S.known || {};
+  S.view = S.view || { m: 'cfop', t: 'ov' };
+  S.hist = S.hist || {};
+  S.rec = S.rec || {};
+  undoDel = [];
+  AOC = {};
+  if (merged) for (const id of new Set([...Object.keys(S.data || {}), ...Object.values(S.hist).flatMap(h => Object.keys(h))])) { repb(id); repRec(id); }
+  migrate();
+  rollover();
+  try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
+  applyTheme();
+  newScr();
+  render();
 }
 
+async function pull() {
+  if (!location.protocol.startsWith('http') || !AUTH || mode !== 'idle') return;
+  setSync('busy');
+  try {
+    const sv = (await api('state')).state, st = syncedTs();
+    if (!sv) { await doPush(); return; }                        // new account: upload what is on this computer
+    const local = (S.ts || 0) > st;                              // changed here since the last sync
+    if (sv.ts === st) { if (local) await doPush(); else setSync('ok'); return; }
+    if (local && (countAll(S) || (S.custom && S.custom.length))) {                                  // changed on both sides: merge
+      const M = mergeState(sv);
+      M.set = { ...M.set, ...(sv.set || {}) };
+      S = M;
+      S.ts = Math.max(Date.now(), (sv.ts || 0) + 1);
+      setSyncedTs(sv.ts || 0);
+      afterSwap(true);
+      save();
+    } else {                                                     // only the server changed: take it
+      S = { ...S, ...sv, set: { ...S.set, ...sv.set } };
+      setSyncedTs(sv.ts || 0);
+      afterSwap(false);
+      setSync('ok');
+    }
+  } catch (e) {
+    setSync(AUTH ? 'err' : 'off');
+  }
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Removes everything personal from this computer (used by log out and delete account).
+function wipeLocal() {
+  LOCKED = true;
+  clearTimeout(pt);
+  try { for (const k of ['ct2', 'ct2sync', 'ct2auth', 'ct2wall']) localStorage.removeItem(k); } catch (e) {}
+}
+
+async function logout() {
+  if (AUTH) {
+    clearTimeout(pt);
+    for (let i = 0; pushing && i < 50; i++) await sleep(100);
+    const ok = (S.ts || 0) <= syncedTs() || await doPush();   // send the latest solves first
+    if (!ok && !confirm('Your latest solves could not be sent to the server. Log out anyway? They will be lost on this computer.')) return;
+    try { await api('logout', 'POST', {}); } catch (e) {}
+  }
+  wipeLocal();
+  location.reload();
+}
+
+let acctTab = 'in';
+function acMsg(t, k) {
+  const el = document.getElementById('acmsg');
+  if (el) { el.textContent = t || ''; el.className = 'acmsg ' + (k || ''); }
+}
+
+// The Account window: log in / create account, or the profile when signed in.
+function account() {
+  if (!location.protocol.startsWith('http')) {
+    open('<h3>Account</h3><p class="lead">Accounts need the timer to be opened from a web address (http or https), not from a file on your computer.</p>');
+    return;
+  }
+  const f = (n, l, t, ac, extra = '') => `<label>${l}<input name="${n}" type="${t}" autocomplete="${ac}" required ${extra}></label>`,
+        un = 'autocapitalize="off" spellcheck="false" maxlength="24"';
+  if (AUTH) {
+    open(`<h3>Profile</h3><p id="acmsg" class="acmsg" role="alert"></p>
+<section class="dcard sg"><h4>Signed in as ${esc(AUTH.user)}</h4>
+<p class="lead">Your solves, records and settings are saved on the server. Log in with this username and password on any computer to see them there.</p>
+<div class="set"><span class="lb">Sync status</span><b id="acst">${esc(SYNC_TXT[syncSt])}</b></div>
+<div class="row btns"><button data-acct="sync">Sync now</button><button data-acct="out">Log out</button></div></section>
+<section class="dcard sg"><h4>Change password</h4>
+<form class="acform" data-acct-form="pw"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
+${f('current', 'Current password', 'password', 'current-password')}${f('next', 'New password (at least 8 characters)', 'password', 'new-password', 'minlength="8"')}${f('next2', 'New password again', 'password', 'new-password', 'minlength="8"')}
+<button type="submit">Change password</button></form></section>
+<section class="dcard sg"><h4>Delete account</h4>
+<p class="lead">Deletes your account and all its solves from the server, and clears this computer. It cannot be undone. Tip: use Export data in Settings first.</p>
+<form class="acform" data-acct-form="del"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
+${f('password', 'Your password', 'password', 'current-password')}<button type="submit" class="danger">Delete my account</button></form></section>`);
+  } else {
+    const up = acctTab === 'up';
+    open(`<h3>Account</h3><div class="row tabs"><button data-acct="tab" data-t="in" class="${up ? '' : 'on'}">Log in</button><button data-acct="tab" data-t="up" class="${up ? 'on' : ''}">Create account</button></div>
+<p class="lead">${up ? 'Pick a username and a password. Your solves on this computer are added to the new account, and you can log in with it on any other computer.' : 'Log in to get all your solves, records and settings on this computer. Solves already on this computer are added to your account.'}</p>
+<p id="acmsg" class="acmsg" role="alert"></p>
+<form class="acform" data-acct-form="${up ? 'up' : 'in'}">
+${f('username', 'Username', 'text', 'username', un)}${f('password', 'Password' + (up ? ' (at least 8 characters)' : ''), 'password', up ? 'new-password' : 'current-password', up ? 'minlength="8"' : '')}${up ? f('confirm', 'Password again', 'password', 'new-password', 'minlength="8"') : ''}
+<button type="submit" class="on">${up ? 'Create account' : 'Log in'}</button></form>
+${up ? '<p class="lead">Username: 3 to 24 letters, numbers, _ . or -</p>' : ''}`);
+  }
+}
+
+dl.addEventListener('click', async e => {
+  const b = e.target.closest('[data-acct]');
+  if (!b) return;
+  const a = b.dataset.acct;
+  if (a === 'tab') { acctTab = b.dataset.t; account(); }
+  else if (a === 'sync') {
+    b.disabled = true;
+    await pull();
+    for (let i = 0; pushing && i < 50; i++) await sleep(100);
+    b.disabled = false;
+    acMsg(syncSt === 'ok' ? 'Synced.' : SYNC_TXT[syncSt], syncSt === 'ok' ? 'ok' : 'bad');
+  } else if (a === 'out') {
+    if (confirm('Log out? Your solves stay in your account. They are removed from this computer.')) logout();
+  }
+});
+
+dl.addEventListener('submit', async e => {
+  const f = e.target.closest ? e.target.closest('[data-acct-form]') : null;
+  if (!f) return;
+  e.preventDefault();
+  const v = n => (f.elements[n] ? f.elements[n].value : ''), kind = f.dataset.acctForm, btn = f.querySelector('button[type=submit]');
+  if (btn) btn.disabled = true;
+  try {
+    if (kind === 'in' || kind === 'up') {
+      if (kind === 'up' && v('password') !== v('confirm')) throw new Error('The two passwords are not the same.');
+      const r = await api(kind === 'in' ? 'login' : 'register', 'POST', { username: v('username').trim(), password: v('password') });
+      setAuth({ token: r.token, user: r.username });
+      setSyncedTs(0);
+      setSync('busy');
+      await pull();
+      account();
+      acMsg(syncSt === 'err' ? 'Logged in, but the solves could not be synced yet.' : 'Welcome, ' + AUTH.user + '! Your solves are synced.', syncSt === 'err' ? 'bad' : 'ok');
+    } else if (kind === 'pw') {
+      if (v('next') !== v('next2')) throw new Error('The two new passwords are not the same.');
+      await api('password', 'POST', { current: v('current'), next: v('next') });
+      account();
+      acMsg('Password changed. Other computers will need to log in again.', 'ok');
+    } else if (kind === 'del') {
+      if (!confirm('Delete the account "' + AUTH.user + '" and all its solves on the server? This cannot be undone.')) { if (btn) btn.disabled = false; return; }
+      await api('delete', 'POST', { password: v('password') });
+      wipeLocal();
+      location.reload();
+    }
+  } catch (err) {
+    acMsg(err.message, 'bad');
+    if (btn) btn.disabled = false;
+  }
+});
+
 pull();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); } });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); }
+  else if (!LOCKED) { try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {} }   // keep the last screen time when the tab is left
+});
 setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);
+setInterval(() => { if (AUTH && !document.hidden && mode === 'idle' && !dl.open) pull(); }, 90000);   // pick up solves done on another computer
 
 keyLabels();
+updateAcct();

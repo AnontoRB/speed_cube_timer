@@ -853,3 +853,14 @@ body.has-wall #side { --card: color-mix(in srgb, color-mix(in srgb, var(--fg) 10
 body.wide header .menu > button[data-a="set"] { display: flex; align-items: center; justify-content: center; padding: 0 12px; }
 body.wide header .menu > button[data-a="set"] .tx { display: none; }
 body.wide header .menu > button[data-a="set"] .ic { display: block; }
+
+/* 20. ACCOUNT ---------------------------------------------------
+   Log in / profile window and the account button in the menu. */
+[data-a="acct"] .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
+.acform { display: grid; gap: 10px; margin-top: 8px; }
+.acform label { display: grid; gap: 4px; color: var(--mut); font-size: .9em; }
+.acform input { width: 100%; box-sizing: border-box; max-width: none; }
+.acmsg { margin: 8px 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); }
+.acmsg:empty { display: none; }
+.acmsg.ok { border-color: var(--rd); }
+.acmsg.bad { border-color: var(--hd); color: var(--hd); }

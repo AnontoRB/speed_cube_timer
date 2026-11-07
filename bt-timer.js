@@ -30,6 +30,7 @@
     console.log('[BT]', t);
     logBox();
     pre.textContent += new Date().toISOString().slice(14, 23) + ' ' + t + '\n';
+    if (pre.textContent.length > 30000) pre.textContent = pre.textContent.slice(-20000);   // the log must not grow forever
     pre.scrollTop = pre.scrollHeight;
   }
   const hex = b => Array.from(b, x => (x & 255).toString(16).padStart(2, '0')).join(' ');
@@ -208,7 +209,7 @@
   }
 
   function onPacket(ev) {
-    got++;
+    if (++got === 1) setStatus('Connected');   // the timer answered, so it really is connected
     const v = ev.target.value;
     let m = Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
     log('RX ' + hex(m));
@@ -275,11 +276,15 @@
     b.classList.toggle('on', text === 'Connected');
   }
 
+  let connecting = false;
+  const hooked = new WeakSet();   // devices that already have the disconnect listener (no duplicates on reconnect)
   async function connect() {
+    if (connecting) return;       // a second click while scanning must not start a second connection
     if (!navigator.bluetooth) {
       alert('Web Bluetooth is not supported here. Use Chrome or Edge on desktop or Android (not Firefox, Safari or iPhone) over HTTPS.');
       return;
     }
+    connecting = true;
     try {
       got = 0; waitPkg = 0; payloadData = [];
       aes = makeAes(new Uint8Array(16).fill(0x77));
@@ -294,7 +299,10 @@
         dev = await navigator.bluetooth.requestDevice({ ...reqOpts, optionalManufacturerData: [CIC] });
       }
       log('Device: ' + dev.name);
-      dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; });
+      if (!hooked.has(dev)) {
+        hooked.add(dev);
+        dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; });
+      }
 
       setStatus('Connecting...');
       let mac = await macFromAdverts(dev);
@@ -323,12 +331,14 @@
         for (let i = 0; i < 35 && !got; i++) await new Promise(r => setTimeout(r, 100));
         if (got) { log('Timer answered to the "' + m + '" hello.'); lsSet('qiyiMac', mac); break; }
       }
-      setStatus('Connected');
+      setStatus(got ? 'Connected' : 'No reply');   // click the button again to disconnect
       log(got ? 'Ready. Touch the pads and do a solve.' : 'NO REPLY to either hello. MAC used: ' + mac);
     } catch (err) {
       setStatus('Bluetooth');
       log('Error: ' + err.message);
       if (err.name !== 'NotFoundError') alert('Bluetooth failed: ' + err.message);
+    } finally {
+      connecting = false;
     }
   }
 
