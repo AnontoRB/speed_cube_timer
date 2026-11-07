@@ -1,0 +1,11 @@
+name = "cubetimer-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Your GitHub Pages address: only the origin (no path). Example for the repo AnontoRB/speed_cube_timer:
+ALLOW_ORIGIN = "https://anontorb.github.io"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "2297e804ce894afc8b446e41e9c18890"

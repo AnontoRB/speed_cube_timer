@@ -91,7 +91,7 @@ try { navigator.storage.persist(); } catch (e) {}
 // ---- Accounts and server sync ----
 // '' = the server that serves this page (server.js). If the website is hosted somewhere else
 // (for example GitHub Pages), put the address of your server here, e.g. 'https://cubetimer.example.com'.
-const API_BASE = '';
+const API_BASE = 'https://cubetimer-api.anontoorb.workers.dev';
 const apiUrl = p => (API_BASE ? API_BASE.replace(/\/+$/, '') + '/' : '') + 'api/' + p;
 const SYNC_TXT = { off: 'Not signed in', busy: 'Syncing…', ok: 'All changes are saved on the server', err: 'Cannot reach the server. Your solves are safe on this computer and will sync later.' };
 let AUTH = null, syncSt = 'off', pt, pushing = false, pushAgain = false, retry409 = 0, LOCKED = false;
