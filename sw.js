@@ -1,5 +1,5 @@
 // Network first (so updates always show), cached copy used when offline.
-const C = 'cubetimer-v5';
+const C = 'cubetimer-v6';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'bt-timer.js', 'pkg/cubetimer.js', 'pkg/cubetimer_bg.wasm'];
 
 self.addEventListener('install', e => {
@@ -13,14 +13,21 @@ self.addEventListener('activate', e => e.waitUntil(
 
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
-  if (e.request.method !== 'GET' || u.pathname.endsWith('/api/state')) return;
+  // only plain GET requests for http(s); never touch the API (login/sync data must not be cached)
+  if (e.request.method !== 'GET' || !u.protocol.startsWith('http') || u.pathname.includes('/api/')) return;
+  const same = u.origin === self.location.origin;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, same ? { cache: 'no-cache' } : undefined)
       .then(r => {
-        const c = r.clone();
-        caches.open(C).then(x => x.put(e.request, c));
+        // keep only complete, successful same-site answers (partial 206 or error pages must not be stored)
+        if (same && r.ok && r.status === 200) {
+          const c = r.clone();
+          caches.open(C).then(x => x.put(e.request, c)).catch(() => {});
+        }
         return r;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(e.request, { ignoreSearch: true })
+        .then(r => r || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined))
+        .then(r => r || Response.error()))
   );
 });

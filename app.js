@@ -199,7 +199,7 @@ function applyTheme() {
   document.body.classList.toggle('has-wall', !!WALL);
 }
 
-let scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0, pen = 0, b8 = 0, b12 = 0;
+let raf = 0, scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0, i0 = 0, pen = 0, b8 = 0, b12 = 0;
 
 const newScr = () => {
   scr = S.set.rnd ? 'Random' : genScr(curCube());
@@ -273,7 +273,6 @@ function render() {
     tm.textContent = d.solves.length ? fmtS(d.solves[d.solves.length - 1]) : '–';
     $('#msg').textContent = 'Past day: you can look, but nothing can be changed.';
   }
-  const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
   $('#rd').innerHTML = roundsHtml(d);   // all rounds, newest first; the side column scrolls (about 5 rounds are visible at once)
 }
 
@@ -1244,7 +1243,8 @@ function tick() {
   } else {
     return;
   }
-  requestAnimationFrame(tick);
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
 }
 
 function down() {
@@ -1393,9 +1393,9 @@ document.addEventListener('keydown', e => {
 });
 
 document.addEventListener('keyup', e => {
-  if (e.code === 'Space') {
+  if (e.code === 'Space' && !dl.open) {
     e.preventDefault();
-    if (!dl.open) up();
+    up();
   }
 });
 
@@ -1654,6 +1654,7 @@ dl.addEventListener('click', e => {
     l.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
     l.download = 'cubetimer-backup-' + dkey(Date.now()) + '.json';
     l.click();
+    setTimeout(() => URL.revokeObjectURL(l.href), 2000);
   } else if (a === 'imp') {
     const i = document.createElement('input');
     i.type = 'file';
@@ -1661,7 +1662,7 @@ dl.addEventListener('click', e => {
     i.onchange = () => i.files[0].text().then(t => {
       try {
         const J = JSON.parse(t);
-        if (!J || typeof J.data !== 'object') throw 0;
+        if (!J || !J.data || typeof J.data !== 'object') throw 0;
         pendImp = J;
         const M = mergeState(J), before = countAll(S), after = countAll(M), inFile = countAll(J);
         open(`<h3>Import data</h3><p>This file has <b>${plural(inFile, 'solve')}</b>. You have <b>${plural(before, 'solve')}</b> here now.</p><p><b>Merge</b> keeps everything you have and adds the file: <b>${plural(after - before, 'new solve')}</b> will be added${inFile - (after - before) > 0 ? ` (${inFile - (after - before)} already here, skipped)` : ''}. Solves from the same day and cube are put in time order and the rounds are renumbered.</p><p><b>Replace</b> deletes what you have now and uses only the file.</p>${J.set ? '<p><label><input type="checkbox" id="impset" checked> Also import the <b>settings and look</b> from this file (theme, layout, typing mode, random scramble, goal, keys, custom cubes' + (J.wall ? ', wallpaper' : '') + ')</label></p>' : '<p class="dtl">This file has no settings (older export), so only the solves are imported.</p>'}<div class="row btns"><button data-a="close">Cancel</button><button data-a="impreplace" class="danger">Replace everything</button><button data-a="impmerge" class="on">Merge</button></div>`);
@@ -1780,7 +1781,7 @@ function todayInfo() {
 function openSolve(i) {
   sel = i;
     const s = D().solves[sel];
-    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${s.s}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
+    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${esc(s.s)}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
 }
 
 // ---- Import: merge a saved file into the data that is already here (no solve is added twice) ----
@@ -1852,7 +1853,7 @@ function openRound(n) {
       return `<button data-a="solve" data-i="${I[k]}"><small>${ORD[k]}</small> <b>${w}</b></button>`;
     }).join('')}</div>` +
     (full ? `<div class="dtl">Best and worst are dropped (in brackets). The ao5 is the mean of the other three.</div>` : '') +
-    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace">${s.s}</span></div>`).join(''));
+    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace">${esc(s.s)}</span></div>`).join(''));
 }
 
 migrate();
