@@ -39,6 +39,24 @@ async function readJson(req, limit) {
 }
 const getJ = async (env, k) => { const t = await env.KV.get(k); return t ? JSON.parse(t) : null; };
 
+// Short account history kept on the user record (last 50 events). Only rare events are logged, so KV writes stay low.
+const logEv = (user, req, e) => {
+  (user.log = user.log || []).push({ t: Date.now(), e, c: (req.cf && req.cf.country) || '' });
+  if (user.log.length > 50) user.log.splice(0, user.log.length - 50);
+};
+
+// Admin: ADMIN_USER and ADMIN_PASS are Worker secrets. The admin token is signed (no KV writes) and lasts 8 hours.
+async function hmac(env, s) {
+  const k = await crypto.subtle.importKey('raw', enc.encode('ct-admin|' + env.ADMIN_PASS), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return hex(new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(s))));
+}
+async function adminOk(req, env) {
+  if (!env.ADMIN_USER || !env.ADMIN_PASS) return false;
+  const m = /^Bearer\s+(\d+)\.([0-9a-f]+)$/.exec(req.headers.get('Authorization') || '');
+  if (!m || Date.now() > +m[1]) return false;
+  return same(enc.encode(await hmac(env, 'admin|' + m[1])), enc.encode(m[2]));
+}
+
 async function newSession(env, uk, ver) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   await env.KV.put('s:' + await sha(token), JSON.stringify({ u: uk, ver }), { expirationTtl: SESSION_S });
@@ -67,6 +85,7 @@ async function api(req, env, p) {
     if (await env.KV.get('u:' + uk)) throw fail(409, 'That username is already taken.');
     const salt = crypto.getRandomValues(new Uint8Array(16)), hash = await hashPw(b.password, salt);
     const user = { id: hex(crypto.getRandomValues(new Uint8Array(12))), name: b.username, salt: b64(salt), hash: b64(hash), created: Date.now(), ver: 0 };
+    logEv(user, req, 'Created account');
     await env.KV.put('u:' + uk, JSON.stringify(user));
     return send(req, env, 200, { token: await newSession(env, uk, 0), username: b.username });
   }
@@ -78,7 +97,63 @@ async function api(req, env, p) {
     const user = await getJ(env, 'u:' + uk);
     const ok = typeof b.password === 'string' && b.password.length <= 200 && await checkPassword(user, b.password);
     if (!ok) { await hitFail(env, key); throw fail(401, 'Wrong username or password.'); }
+    logEv(user, req, 'Logged in');
+    await env.KV.put('u:' + uk, JSON.stringify(user));
     return send(req, env, 200, { token: await newSession(env, uk, user.ver || 0), username: user.name });
+  }
+
+  if (p === '/api/admin/login' && m === 'POST') {
+    if (!env.ADMIN_USER || !env.ADMIN_PASS) throw fail(503, 'Admin is not set up yet.');
+    const b = await readJson(req, MAX_SMALL), key = 'adm|' + ip;
+    if (await limited(env, key, 5)) throw fail(429, 'Too many tries. Wait 15 minutes and try again.');
+    const h = async v => enc.encode(await sha(String(v || '')));
+    const ok1 = same(await h(b.username), await h(env.ADMIN_USER)), ok2 = same(await h(b.password), await h(env.ADMIN_PASS));
+    if (!(ok1 && ok2)) { await hitFail(env, key); throw fail(401, 'Wrong admin name or password.'); }
+    const exp = Date.now() + 8 * 3600 * 1000;
+    return send(req, env, 200, { token: exp + '.' + await hmac(env, 'admin|' + exp) });
+  }
+
+  if (p.startsWith('/api/admin/')) {
+    if (!(await adminOk(req, env))) throw fail(401, 'Admin login needed.');
+    const url = new URL(req.url);
+
+    if (p === '/api/admin/users' && m === 'GET') {   // 40 accounts per page (free plan allows 50 KV operations per request)
+      const r = await env.KV.list({ prefix: 'u:', limit: 40, cursor: url.searchParams.get('cursor') || undefined });
+      const st = {};
+      let c;
+      do { const q = await env.KV.list({ prefix: 'st:', cursor: c }); for (const k of q.keys) st[k.name.slice(3)] = (k.metadata && Number(k.metadata.ts)) || 0; c = q.list_complete ? undefined : q.cursor; } while (c);
+      const users = (await Promise.all(r.keys.map(k => getJ(env, k.name)))).filter(Boolean).map(u => {
+        const log = u.log || [], last = log.length ? log[log.length - 1] : null;
+        return { username: u.name, created: u.created, lastSync: st[u.id] || 0, hasData: u.id in st, lastEvent: last };
+      });
+      return send(req, env, 200, { users, cursor: r.list_complete ? null : r.cursor });
+    }
+
+    if (p === '/api/admin/user' && m === 'GET') {
+      const uk = (url.searchParams.get('name') || '').toLowerCase(), u = await getJ(env, 'u:' + uk);
+      if (!u) throw fail(404, 'No such account.');
+      const t = await env.KV.get('st:' + u.id);
+      return send(req, env, 200, { user: { username: u.name, created: u.created, log: u.log || [] }, state: t ? JSON.parse(t) : null });
+    }
+
+    if (p === '/api/admin/resetpw' && m === 'POST') {
+      const b = await readJson(req, MAX_SMALL), uk = String(b.username || '').toLowerCase(), u = await getJ(env, 'u:' + uk);
+      if (!u) throw fail(404, 'No such account.');
+      if (!validPass(b.password)) throw fail(400, 'Password: at least 8 characters.');
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      u.salt = b64(salt); u.hash = b64(await hashPw(b.password, salt)); u.ver = (u.ver || 0) + 1;   // logs the user out everywhere
+      logEv(u, req, 'Password reset by admin');
+      await env.KV.put('u:' + uk, JSON.stringify(u));
+      return send(req, env, 200, { ok: true });
+    }
+
+    if (p === '/api/admin/delete' && m === 'POST') {
+      const b = await readJson(req, MAX_SMALL), uk = String(b.username || '').toLowerCase(), u = await getJ(env, 'u:' + uk);
+      if (!u) throw fail(404, 'No such account.');
+      await env.KV.delete('u:' + uk); await env.KV.delete('st:' + u.id);
+      return send(req, env, 200, { ok: true });
+    }
+    throw fail(404, 'Not found.');
   }
 
   const a = await auth(req, env);
@@ -112,6 +187,7 @@ async function api(req, env, p) {
     if (!(typeof b.current === 'string' && await checkPassword(a.user, b.current))) throw fail(403, 'Your current password is wrong.');
     const salt = crypto.getRandomValues(new Uint8Array(16));
     a.user.salt = b64(salt); a.user.hash = b64(await hashPw(b.next, salt)); a.user.ver = (a.user.ver || 0) + 1;   // other computers must log in again
+    logEv(a.user, req, 'Changed password');
     await env.KV.put('u:' + a.uk, JSON.stringify(a.user));
     await env.KV.put(a.key, JSON.stringify({ u: a.uk, ver: a.user.ver }), { expirationTtl: SESSION_S });
     return send(req, env, 200, { ok: true });

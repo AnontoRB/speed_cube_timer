@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="dark">
+<title>CubeTimer Admin</title>
+<style>
+:root{--bg:#14161a;--card:#1d2026;--line:#2c313a;--tx:#e8eaed;--mu:#9aa0a9;--ac:#4da3ff;--ok:#4cd08a;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,Segoe UI,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+header b{font-size:16px}.sp{flex:1}
+main{max-width:1100px;margin:0 auto;padding:16px}
+button,input,select{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+button{cursor:pointer}button:hover{border-color:var(--ac)}
+button.danger{color:var(--bad)}button.pri{background:var(--ac);color:#06121f;border-color:var(--ac);font-weight:600}
+input{width:100%}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.login{max-width:340px;margin:12vh auto}.login input{margin:6px 0 10px}
+.err{color:var(--bad);min-height:1.2em}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}.tile small{color:var(--mu);display:block}.tile b{font-size:20px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mu);font-weight:600;cursor:pointer;user-select:none}
+tr.row{cursor:pointer}tr.row:hover{background:#242830}
+.wrap{overflow-x:auto}
+.mu{color:var(--mu)}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.bar input,.bar select{width:auto;flex:1;min-width:140px}
+h2,h3{margin:0 0 10px}
+.scr{white-space:normal;max-width:420px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mu)}
+.tl{list-style:none;margin:0;padding:0}.tl li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:10px}.tl time{color:var(--mu);min-width:170px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><b>CubeTimer Admin</b><span class="sp"></span><span id="who" class="mu"></span><button id="out" hidden>Log out</button></header>
+<main>
+  <div id="login" class="card login">
+    <h2>Admin login</h2>
+    <label>Admin name<input id="u" autocomplete="username"></label>
+    <label>Password<input id="p" type="password" autocomplete="current-password"></label>
+    <div class="err" id="le"></div>
+    <button class="pri" id="lb">Log in</button>
+  </div>
+
+  <div id="list" hidden>
+    <div class="tiles" id="ltiles"></div>
+    <div class="card">
+      <div class="bar"><input id="q" placeholder="Search username…"><button id="more" hidden>Load more accounts</button><button id="reload">Refresh</button></div>
+      <div class="wrap"><table><thead><tr><th data-k="username">Username</th><th data-k="created">Created</th><th data-k="lastSync">Last sync</th><th data-k="lastEvent">Last activity</th></tr></thead><tbody id="tb"></tbody></table></div>
+    </div>
+  </div>
+
+  <div id="det" hidden></div>
+</main>
+<script>
+// Your Worker address (same as API_BASE in app.js)
+const API = 'https://cubetimer-api.anontoorb.workers.dev/api/';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let TOKEN = sessionStorage.getItem('ctadmin') || '', USERS = [], CURSOR = null, SORT = { k: 'created', d: -1 };
+
+async function call(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && TOKEN) { logout(); }
+  if (!r.ok) throw new Error(j.error || 'Error ' + r.status);
+  return j;
+}
+const dt = t => t ? new Date(t).toLocaleString() : '–';
+const ago = t => { if (!t) return '–'; const s = (Date.now() - t) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.floor(s / 60) + ' min ago' : s < 86400 ? Math.floor(s / 3600) + ' h ago' : Math.floor(s / 86400) + ' d ago'; };
+const fmt = ms => { if (!isFinite(ms)) return 'DNF'; const m = Math.floor(ms / 60000), s = (ms % 60000) / 1000; return m ? m + ':' + s.toFixed(2).padStart(5, '0') : s.toFixed(2); };
+const val = s => s.p === 'D' ? Infinity : s.t + (s.p === 2 ? 2000 : 0);
+
+function show(which) { for (const id of ['login', 'list', 'det']) $('#' + id).hidden = id !== which; $('#out').hidden = which === 'login'; $('#who').textContent = which === 'login' ? '' : 'Admin'; }
+function logout() { TOKEN = ''; sessionStorage.removeItem('ctadmin'); show('login'); }
+$('#out').onclick = logout;
+
+$('#lb').onclick = async () => {
+  $('#le').textContent = '';
+  try {
+    const j = await call('admin/login', 'POST', { username: $('#u').value.trim(), password: $('#p').value });
+    TOKEN = j.token; sessionStorage.setItem('ctadmin', TOKEN); $('#p').value = '';
+    loadUsers(true);
+  } catch (e) { $('#le').textContent = e.message; }
+};
+$('#p').onkeydown = e => { if (e.key === 'Enter') $('#lb').click(); };
+
+async function loadUsers(reset) {
+  if (reset) { USERS = []; CURSOR = null; }
+  try {
+    const j = await call('admin/users' + (CURSOR ? '?cursor=' + encodeURIComponent(CURSOR) : ''));
+    USERS = USERS.concat(j.users); CURSOR = j.cursor;
+    show('list'); renderList();
+  } catch (e) { if (TOKEN) alert(e.message); }
+}
+function renderList() {
+  const q = $('#q').value.trim().toLowerCase(), k = SORT.k;
+  const key = u => k === 'username' ? u.username.toLowerCase() : k === 'lastEvent' ? (u.lastEvent ? u.lastEvent.t : 0) : u[k] || 0;
+  const L = USERS.filter(u => u.username.toLowerCase().includes(q)).sort((a, b) => key(a) > key(b) ? SORT.d : key(a) < key(b) ? -SORT.d : 0);
+  const day = Date.now() - 864e5;
+  $('#ltiles').innerHTML = [['Accounts loaded', USERS.length], ['Active last 24 h', USERS.filter(u => u.lastSync > day || (u.lastEvent && u.lastEvent.t > day)).length], ['New last 7 days', USERS.filter(u => u.created > Date.now() - 6048e5).length], ['With saved solves', USERS.filter(u => u.hasData).length]].map(([a, b]) => `<div class="tile"><small>${a}</small><b>${b}</b></div>`).join('');
+  $('#tb').innerHTML = L.map(u => `<tr class="row" data-n="${esc(u.username)}"><td><b>${esc(u.username)}</b></td><td>${dt(u.created)}</td><td>${u.lastSync ? ago(u.lastSync) : '<span class="mu">never</span>'}</td><td>${u.lastEvent ? esc(u.lastEvent.e) + ' <span class="mu">· ' + ago(u.lastEvent.t) + '</span>' : '–'}</td></tr>`).join('') || '<tr><td colspan="4" class="mu">No accounts.</td></tr>';
+  $('#more').hidden = !CURSOR;
+}
+$('#q').oninput = renderList;
+$('#reload').onclick = () => loadUsers(true);
+$('#more').onclick = () => loadUsers(false);
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; SORT = { k, d: SORT.k === k ? -SORT.d : -1 }; renderList(); });
+$('#tb').onclick = e => { const tr = e.target.closest('tr.row'); if (tr) openUser(tr.dataset.n); };
+
+// Collect every solve: today's (state.data) and earlier days (state.hist[day][cube])
+function collect(state) {
+  const out = [];
+  if (!state) return out;
+  const add = (cube, solves, day) => (solves || []).forEach(s => out.push({ cube, day, ...s }));
+  for (const c in state.data || {}) add(c, state.data[c].solves, 'today');
+  for (const day in state.hist || {}) for (const c in state.hist[day]) add(c, state.hist[day][c].solves, day);
+  return out.sort((a, b) => (b.d || 0) - (a.d || 0));
+}
+let CUR = null;
+async function openUser(name) {
+  try {
+    const j = await call('admin/user?name=' + encodeURIComponent(name));
+    CUR = j; renderUser(j);
+  } catch (e) { alert(e.message); }
+}
+function renderUser(j) {
+  const u = j.user, st = j.state, solves = collect(st), cubes = {};
+  for (const s of solves) (cubes[s.cube] = cubes[s.cube] || []).push(s);
+  const good = solves.filter(s => isFinite(val(s)));
+  const best = good.length ? Math.min(...good.map(val)) : NaN, tot = good.reduce((a, s) => a + val(s), 0);
+  const days = {};
+  for (const s of solves) { const k = s.d ? new Date(s.d).toLocaleDateString() : s.day; days[k] = (days[k] || 0) + 1; }
+  const tiles = [['Total solves', solves.length], ['DNFs', solves.filter(s => s.p === 'D').length], ['Best single', good.length ? fmt(best) : '–'], ['Time spent solving', good.length ? Math.round(tot / 60000) + ' min' : '–'], ['Days practiced', Object.keys(days).length], ['Created', dt(u.created)]];
+  const cubeRows = Object.keys(cubes).map(c => { const g = cubes[c].filter(s => isFinite(val(s))); return `<tr><td>${esc(c)}</td><td>${cubes[c].length}</td><td>${g.length ? fmt(Math.min(...g.map(val))) : '–'}</td><td>${g.length ? fmt(g.reduce((a, s) => a + val(s), 0) / g.length) : '–'}</td></tr>`; }).join('');
+  const dayRows = Object.entries(days).slice(0, 60).map(([d, n]) => `<li><time>${esc(d)}</time><span>${n} solve${n === 1 ? '' : 's'}</span></li>`).join('');
+  const logRows = u.log.slice().reverse().map(l => `<li><time>${dt(l.t)}</time><span>${esc(l.e)}${l.c ? ' <span class="mu">(' + esc(l.c) + ')</span>' : ''}</span></li>`).join('');
+  const solveRows = solves.slice(0, 500).map(s => `<tr><td>${s.d ? dt(s.d) : esc(s.day)}</td><td>${esc(s.cube)}</td><td><b>${s.p === 'D' ? 'DNF' : fmt(val(s))}</b>${s.p === 2 ? ' <span class="mu">+2</span>' : ''}</td><td>${s.r || ''}</td><td class="scr">${esc(s.s)}</td></tr>`).join('');
+  $('#det').innerHTML = `
+    <div class="bar"><button id="back">← All accounts</button><h2 style="margin:0">${esc(u.username)}</h2><span class="sp" style="flex:1"></span>
+      <button id="exp">Export JSON</button><button id="rst">Reset password</button><button id="del" class="danger">Delete account</button></div>
+    <div class="tiles">${tiles.map(([a, b]) => `<div class="tile"><small>${a}</small><b style="font-size:${String(b).length > 12 ? 13 : 20}px">${esc(b)}</b></div>`).join('')}</div>
+    <div class="card"><h3>Account activity</h3><ul class="tl">${logRows || '<li class="mu">No events recorded yet (events are recorded from now on).</li>'}</ul></div>
+    <div class="card"><h3>Cubes</h3><div class="wrap"><table><thead><tr><th>Cube</th><th>Solves</th><th>Best</th><th>Mean</th></tr></thead><tbody>${cubeRows || '<tr><td colspan="4" class="mu">No solves.</td></tr>'}</tbody></table></div></div>
+    <div class="card"><h3>Solves per day</h3><ul class="tl">${dayRows || '<li class="mu">None.</li>'}</ul></div>
+    <div class="card"><h3>Solves (newest first${solves.length > 500 ? ', first 500 of ' + solves.length : ''})</h3><div class="wrap"><table><thead><tr><th>When</th><th>Cube</th><th>Time</th><th>Round</th><th>Scramble</th></tr></thead><tbody>${solveRows || '<tr><td colspan="5" class="mu">No solves.</td></tr>'}</tbody></table></div></div>`;
+  show('det');
+  $('#back').onclick = () => show('list');
+  $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' })); a.download = u.username + '-cubetimer.json'; document.body.appendChild(a); a.click(); a.remove(); };
+  $('#rst').onclick = async () => {
+    const p = prompt('New password for ' + u.username + ' (at least 8 characters). They will be logged out everywhere.');
+    if (!p) return;
+    try { await call('admin/resetpw', 'POST', { username: u.username, password: p }); alert('Password changed. Tell the user the new password.'); openUser(u.username); } catch (e) { alert(e.message); }
+  };
+  $('#del').onclick = async () => {
+    if (prompt('This deletes the account and ALL its solves forever. Type the username to confirm:') !== u.username) return;
+    try { await call('admin/delete', 'POST', { username: u.username }); await loadUsers(true); } catch (e) { alert(e.message); }
+  };
+}
+
+if (TOKEN) loadUsers(true); else show('login');
+</script>
+</body>
+</html>
