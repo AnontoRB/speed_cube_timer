@@ -1,21 +1,13 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Only the latest version of CubeTimer (the current `main` branch) receives security fixes.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please do not open a public issue for a security problem.
 
-Use this section to tell people how to report a vulnerability.
+Report it privately through GitHub: open the repository, go to the **Security** tab and choose **Report a vulnerability**. Include what you found, the steps to reproduce it, and which part is affected (website, `server.js`, `worker.js` or `admin.html`).
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+You can expect a first answer within 7 days. If the report is accepted, a fix is made as soon as possible and you are told when it is published. If it is declined, you get a short explanation of why.

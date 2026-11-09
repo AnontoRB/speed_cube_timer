@@ -60,12 +60,12 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
-  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
+  tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, pbS: true, pb5: true, pb12: true, pb50: true, pb100: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
   tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null
 });
 
 let WALL = '';
-try { WALL = localStorage.getItem('ct2wall') || ''; } catch (e) {}
+try { WALL = localStorage.getItem('ct2wall') || ''; if (!/^data:image\//.test(WALL)) WALL = ''; } catch (e) {}
 
 const FONTS = { system: 'inherit', mono: 'ui-monospace, Menlo, Consolas, monospace', serif: "Georgia, 'Times New Roman', serif", rounded: "ui-rounded, 'Segoe UI', system-ui, sans-serif" };
 
@@ -143,6 +143,9 @@ async function api(path, method = 'GET', body) {
 }
 
 // Sends the whole state to the account shortly after every change.
+// which kinds of personal best get the confetti, music and gold theme (the message text is always shown)
+const pbOn = k => S.set[k] !== false;
+
 const push = () => {
   if (!location.protocol.startsWith('http') || !AUTH) return;
   clearTimeout(pt);
@@ -871,7 +874,7 @@ function react(s, why) {
         tv = e.solves.map(val).filter(isFinite), dayFirst = todayCount() === 0,
         x = { head: '', hk: 'ok', kind: 'ok', chips: [], events: [], pre: [], tip: '', pb: isPB, big: false, fast: 0 };
   if (isPB) s.pb = 1;
-  if (tone === 'off') { x.head = isPB ? `🏆 Congratulations! New personal best: ${t}!` : 'Solve saved'; x.hk = x.kind = isPB ? 'pb' : ''; return x; }
+  if (tone === 'off') { x.head = isPB ? `🏆 Congratulations! New personal best: ${t}!` : 'Solve saved'; x.hk = x.kind = isPB && pbOn('pbS') ? 'pb' : ''; return x; }
 
   if (isPB) {
     // ---- a new personal best ----
@@ -879,8 +882,8 @@ function react(s, why) {
           tier = g >= 1000 || g / prevBest >= .04 ? 'big' : g < 100 ? 'tiny' : 'std',
           sub = P.subs.filter(y => v < y * 1000 && prevBest >= y * 1000).pop(), nxt = P.subs.find(y => v >= y * 1000),
           last = prior[prior.length - 1], k = e.solves.filter(y => y.pb).length + 1, held = [...prior].reverse().find(y => val(y) === prevBest);
-    x.hk = x.kind = 'pb';
-    x.big = tier === 'big' || !!sub;
+    x.hk = x.kind = pbOn('pbS') ? 'pb' : 'ok';
+    x.big = pbOn('pbS') && (tier === 'big' || !!sub);
     x.head = fill(pk(PBL[tier]), o) + (last && last.pb ? ' Back-to-back PBs!! 🙌' : '') + (sub ? ` 🥇 That is your FIRST sub-${sub} on ${cn}!` : '');
     x.chips.push(`old record ${fx(prevBest)}`, `−${gap}s (${pct}% faster)`);
     if (held && held.d) x.chips.push(`old PB stood for ${ago(Date.now() - held.d)}`);
@@ -1147,13 +1150,13 @@ function add(t, p, why) {
       if (!isFinite(res)) tx = `🧩 Round ${rn} finished as a DNF (two or more DNFs).`;
       else if (nb) {
         tx = `🏆 NEW BEST AO5! Round ${rn}: ${fx(res)} beats your old best of ${fx(ob)} by ${ds(ob - res)}s. Congratulations! (${dropped})`;
-        bump(x, 'pb');
+        if (pbOn('pb5')) bump(x, 'pb');
       } else {
         tx = `✅ Round ${rn} done · ao5 ${fx(res)} (${dropped}).`;
         if (isFinite(prv)) tx += ` ${ds(res - prv)}s ${res < prv ? 'faster' : 'slower'} than your previous round.`;
         if (isFinite(ob) && res > ob && prv !== ob) tx += ` ${ds(res - ob)}s off your best ao5 (${fx(ob)}).`;
       }
-      x.events.push({ k: nb ? 'pb' : 'round', text: tx + ` Round ${rn + 1} starts now.` });
+      x.events.push({ k: nb && pbOn('pb5') ? 'pb' : 'round', text: tx + ` Round ${rn + 1} starts now.` });
       // the same details as the round popup: the five times (best and worst in brackets) and their scrambles
       const lo = vs.indexOf(Math.min(...vs)), hi = vs.indexOf(Math.max(...vs)), fullDet = S.set.det !== 'short';
       x.events.push({ k: 'rsum', text: `<div class="chips">${rs.map((y, k) => { const t = fmtP(y); return `<span><small>${ORD[k]}</small> <b>${k === lo || k === hi ? '(' + t + ')' : t}</b></span>`; }).join('')}</div>` +
@@ -1165,15 +1168,16 @@ function add(t, p, why) {
   if (!off) {
     // rolling averages over the whole history
     const av = allSolves(S.cur).map(val);
-    for (const k of [12, 100]) {
+    for (const k of [12, 50, 100]) {
       if (av.length < k) continue;
       const cur = aoN(av, k);
       if (!isFinite(cur)) continue;
       if (av.length === k) { x.events.push({ k: 'round', text: `📊 Your first ao${k} is complete: ${fx(cur)}!` }); continue; }
       const old = bestAoUpTo(S.cur, av, k, av.length - 1);
       if (isFinite(old) && cur < old) {
-        x.events.push({ k: 'pb', text: `🏆 NEW BEST AO${k}! ${fx(cur)} beats your old best of ${fx(old)} by ${ds(old - cur)}s.` });
-        bump(x, 'pb');
+        const on = pbOn('pb' + k);
+        x.events.push({ k: on ? 'pb' : 'round', text: `🏆 NEW BEST AO${k}! ${fx(cur)} beats your old best of ${fx(old)} by ${ds(old - cur)}s.` });
+        if (on) bump(x, 'pb');
       }
     }
   }
@@ -1550,9 +1554,25 @@ document.addEventListener('pointerdown', e => {
   sync();
 }
 
-const open = h => {
-  dl.innerHTML = '<div class="dc"><div class="xw"><button data-a="close" class="x" aria-label="Close" title="Close">&times;</button></div>' + h + '</div>';
+const dlStack = [];
+const dlTitle = () => { const t = dl.querySelector('h3'); return t ? t.textContent : ''; };
+const open = (h, noPush) => {
+  if (!dl.open) dlStack.length = 0;
+  else if (!noPush) {
+    const html = dl.innerHTML, sc = dl.scrollTop, t = dlTitle();
+    dl.innerHTML = '<div class="dc"><div class="xw"></div>' + h + '</div>';
+    const same = dlTitle() === t; // same title = refresh of this page, not a new page
+    if (!same) dlStack.push({ html, sc });
+  }
+  dl.innerHTML = '<div class="dc"><div class="xw"><button data-a="' + (dlStack.length ? 'back' : 'close') + '" class="x" aria-label="Back" title="Back">&#8249; Back</button></div>' + h + '</div>';
   if (!dl.open) dl.showModal();
+};
+const dlBack = () => {
+  const p = dlStack.pop();
+  if (!p) { dl.close(); return; }
+  dl.innerHTML = p.html;
+  const x = dl.querySelector('.x'); if (x) x.dataset.a = dlStack.length ? 'back' : 'close';
+  dl.scrollTop = p.sc;
 };
 
 const RULES = [
@@ -1659,7 +1679,7 @@ ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'],
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
 ${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
-${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
+${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('pbS', 'Celebrate a new best single') + c('pb5', 'Celebrate a new best ao5') + c('pb12', 'Celebrate a new best ao12') + c('pb50', 'Celebrate a new best ao50') + c('pb100', 'Celebrate a new best ao100') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
 ${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Click a key, then press the keys you want (for example Shift+D). Esc cancels. If a key is already used, the two swap. Space is always the timer.</p>' + KEYACT.map(x => `<div class="set"><span class="lb">${x[1]}</span><button data-a="keyset" data-act="${x[0]}">${keyOf(x[0])}</button></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
 ${g('Your data', '<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">' + (view ? '' : '<button data-a="delall">Delete everything</button>') + '<button data-a="rst">Reset settings</button></span></div>')}`);
   wallPrev();
@@ -1703,7 +1723,8 @@ dl.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.a, d = D(), s = d.solves[sel];
   if (view && ['p2', 'dnf', 'del', 'yes1', 'yes2', 'delall'].includes(a)) return;
-  if (a === 'close') dl.close();
+  if (a === 'back') dlBack();
+  else if (a === 'close') dl.close();
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
   else if (a === 'pg') progress(b.dataset.s);
@@ -1744,6 +1765,9 @@ dl.addEventListener('click', e => {
     // the whole app state goes into the file: solves, history, records, custom cubes, settings and look (anything new added to S or S.set is included automatically), plus the wallpaper
     const out = { ...S, app: 'cubetimer', fmt: 2, exported: Date.now() };
     if (WALL) out.wall = WALL;
+    // also a raw copy of everything this browser has stored for the app (any key, so nothing is missed); only the sign-in token is left out, because anyone holding the file could use it to log in
+    try { out.storage = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k !== 'ct2auth') out.storage[k] = localStorage.getItem(k); } } catch (e) {}
+    if (AUTH && AUTH.user) out.account = { user: AUTH.user };
     l.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
     l.download = 'cubetimer-backup-' + dkey(Date.now()) + '.json';
     document.body.appendChild(l);
@@ -1906,7 +1930,7 @@ const wantSet = () => { const c = document.getElementById('impset'); return !!(c
 function applySet(N, J) {
   N.set = { ...defSet(), ...(N.set || {}), ...(J.set || {}) };
   if (J.view) N.view = J.view;
-  if (J.wall) { try { localStorage.setItem('ct2wall', J.wall); WALL = J.wall; } catch (e) {} }
+  if (J.wall && /^data:image\//.test(J.wall)) { try { localStorage.setItem('ct2wall', J.wall); WALL = J.wall; } catch (e) {} }
   return N;
 }
 

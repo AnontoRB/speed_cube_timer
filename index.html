@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14161a">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   <meta name="description" content="CubeTimer: a speedcubing timer with scrambles, averages, methods and optional sync.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E">
   <title>CubeTimer</title>
@@ -15,7 +15,7 @@
   <header>
     <button id="logo" data-a="cubes" title="Choose a cube"><b>CubeTimer</b><span id="ev"></span> &#9662;</button>
     <span class="sp"></span>
-    <div id="mini" data-a="mini" role="button" aria-label="Today: tap for details"></div>
+    <div id="mini" data-a="mini" role="button" tabindex="0" aria-label="Today: tap for details"></div>
     <nav class="menu" aria-label="Main menu">
       <button id="dt" data-a="cal" title="Calendar"></button>
       <button data-a="meth" title="Methods" aria-label="Methods"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg><span class="tx">Methods</span></button>
@@ -34,7 +34,7 @@
   <div id="scw"><div id="scr" data-a="newscr" title="Click for a new scramble"></div><div class="tools" role="group" aria-label="Scramble and entry options"><button id="rn" data-a="rnd" title="Save scramble as Random" aria-label="Random scramble" aria-pressed="false"><span class="ti">&#127922;</span><span class="lb">Random</span></button><button id="ty" data-a="typing" title="Type times in" aria-label="Type times in" aria-pressed="false"><span class="ti">&#9000;</span><span class="lb">Type times</span></button></div></div>
   <main id="tz">
     <div id="tm">0.00</div>
-    <div id="msg">Hold SPACE or touch to start · Backspace deletes last · 2 = +2 · D = DNF</div>
+    <div id="msg">Hold SPACE or touch to start · Shift+D deletes last · Shift+2 = +2 · D = DNF</div>
   </main>
   <section id="rs"></section>
   <section id="st"></section>

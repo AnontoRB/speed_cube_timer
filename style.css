@@ -118,15 +118,15 @@ body.no-rs #rs, body.no-st #st, body.no-side #side { display: none; }
 .tsum small { display: block; }
 .tsum b { font-variant-numeric: tabular-nums; }
 
-/* 7. DIALOGS (x top right, click outside closes) -------------- */
+/* 7. DIALOGS (Back button top left, click outside closes) -------------- */
 dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--mut); border-radius: calc(var(--rad, 8px) * 1.75); max-width: min(560px, calc(94vw / var(--zoom))); width: 100%; max-height: calc(88vh / var(--zoom)); padding: 0; user-select: text; }
 dialog::backdrop { background: #0008; }
 dialog h4 { margin: 14px 0 2px; color: var(--ac); }
 dialog h4:first-of-type { margin-top: 6px; }
 dialog input, dialog textarea { background: var(--card); color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 20%, var(--bg)); border-radius: 8px; padding: 7px 11px; font: inherit; max-width: 100%; }
-dialog .xw { position: sticky; top: 0; height: 0; z-index: 2; text-align: right; }
-dialog .x { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; font-size: 1.4em; line-height: 1; margin: -4px -4px 0 0; }
-dialog h3 { display: flex; align-items: center; min-height: 36px; padding-right: 44px; margin: 0 0 8px; }
+dialog .xw { position: sticky; top: 0; height: 0; z-index: 2; text-align: left; }
+dialog .x { height: 36px; min-height: 0; padding: 0 14px; border-radius: 18px; font-size: 1em; line-height: 1; margin: -4px 0 0 -4px; }
+dialog h3 { display: flex; align-items: center; min-height: 36px; padding-left: 96px; margin: 0 0 8px; }
 dialog h3 { column-gap: 8px; }
 .dc { padding: 16px; }
 .tabs { margin: 8px 0; flex-wrap: wrap; }
@@ -882,3 +882,7 @@ body.run #pc { visibility: hidden; }
 .pk label { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: .9em; }
 .pk label:has(input:checked) { border-color: var(--ac); }
 .pk input { width: 16px; height: 16px; flex: none; accent-color: var(--ac); }
+
+/* typing mode: the practice banner hangs above the box (like the message hangs below), so it never pushes the box onto the message */
+body.typing:not(.view) #pc { position: absolute; left: 0; right: 0; bottom: calc(50% + 40px); top: 6px; width: min(46em, 100%); margin: 0 auto; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
+body.typing:not(.view) #pc[hidden] { display: none; }

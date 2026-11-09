@@ -72,12 +72,13 @@ async function auth(req, env) {
   return { user, key, uk: s.u };
 }
 async function limited(env, key, max) { return (+(await env.KV.get('rl:' + key)) || 0) >= max; }
-async function hitFail(env, key) { const n = (+(await env.KV.get('rl:' + key)) || 0) + 1; await env.KV.put('rl:' + key, String(n), { expirationTtl: 900 }); }
+async function hitFail(env, key, ttl = 900) { const n = (+(await env.KV.get('rl:' + key)) || 0) + 1; await env.KV.put('rl:' + key, String(n), { expirationTtl: ttl }); }
 
 async function api(req, env, p) {
   const m = req.method, ip = req.headers.get('CF-Connecting-IP') || '?';
 
   if (p === '/api/register' && m === 'POST') {
+    if (await limited(env, 'reg|' + ip, 10)) throw fail(429, 'Too many new accounts from this network. Try again later.');
     const b = await readJson(req, MAX_SMALL);
     if (!validName(b.username)) throw fail(400, 'Username: 3 to 24 letters, numbers, _ . or -');
     if (!validPass(b.password)) throw fail(400, 'Password: at least 8 characters.');
@@ -87,6 +88,7 @@ async function api(req, env, p) {
     const user = { id: hex(crypto.getRandomValues(new Uint8Array(12))), name: b.username, salt: b64(salt), hash: b64(hash), created: Date.now(), ver: 0 };
     logEv(user, req, 'Created account');
     await env.KV.put('u:' + uk, JSON.stringify(user));
+    await hitFail(env, 'reg|' + ip, 3600);
     return send(req, env, 200, { token: await newSession(env, uk, 0), username: b.username });
   }
 
