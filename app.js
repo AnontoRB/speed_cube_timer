@@ -2361,6 +2361,7 @@ ${f('current', 'Current password', 'password', 'current-password')}${f('next', '
 ${recNow ? `<div class="recbox"><div class="qr">${qrSvg('CT1|' + AUTH.user + '|' + recNow.key)}</div><code class="rkey">${keyShown(recNow.key)}</code>
 <p class="lead">This is the only time it is shown. Save it now. A new key replaces this one, and a key can be used once.</p>
 <div class="row btns"><button data-acct="rkcopy">Copy key</button><button data-acct="rkpng">Save QR as picture</button></div></div>` : ''}
+<p id="rkmsg" class="acmsg" role="alert"></p>
 <form class="acform" data-acct-form="rk"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
 ${f('password', 'Your password (to make a key)', 'password', 'current-password')}<button type="submit">${recHas ? 'Make a new recovery key' : 'Make a recovery key'}</button></form></section>
 <section class="dcard sg"><h4>Delete account</h4>
@@ -2448,7 +2449,10 @@ dl.addEventListener('submit', async e => {
       const r = await api('recovery/new', 'POST', { password: v('password') });
       recNow = { key: r.key }; recHas = true;
       account();
-      acMsg('Recovery key made. Save it now, it is only shown once.', 'ok');
+      const rm = document.getElementById('rkmsg');
+      if (rm) { rm.textContent = 'Recovery key made. Save it now, it is only shown once.'; rm.className = 'acmsg ok'; }
+      const rb = document.querySelector('.recbox');
+      if (rb) rb.scrollIntoView({ block: 'center' });
     } else if (kind === 'pw') {
       if (v('next') !== v('next2')) throw new Error('The two new passwords are not the same.');
       await api('password', 'POST', { current: v('current'), next: v('next') });
@@ -2461,7 +2465,11 @@ dl.addEventListener('submit', async e => {
       location.reload();
     }
   } catch (err) {
-    acMsg(err.message, 'bad');
+    let t = err.message;
+    if ((kind === 'rk' || kind === 'rec') && err.status === 404) t = 'The server does not have the recovery key feature yet. Update the server first (deploy the new worker.js or server.js), then try again.';
+    const el = kind === 'rk' ? document.getElementById('rkmsg') : null;
+    if (el) { el.textContent = t; el.className = 'acmsg bad'; el.scrollIntoView({ block: 'center' }); }
+    else acMsg(t, 'bad');
     if (btn) btn.disabled = false;
   }
 });
