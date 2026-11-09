@@ -2273,6 +2273,64 @@ async function logout() {
 }
 
 let acctTab = 'in';
+
+// ---- Recovery key (QR code) ----
+// recNow = the key that was just made (shown once, only kept while the window is open). recHas = does the account have a key.
+let recNow = null, recHas = null, scanStream = null, scanOn = false;
+const keyShown = k => k.match(/.{1,5}/g).join('-');
+const qrDetector = () => ('BarcodeDetector' in window ? new BarcodeDetector({ formats: ['qr_code'] }) : null);
+const rcTxt = () => recNow ? 'New recovery key made. Save it now.' : recHas === null ? '' : recHas ? 'You have a recovery key. Making a new one replaces it.' : 'You do not have a recovery key yet.';
+function scMsg(t, k) { const el = document.getElementById('scmsg'); if (el) { el.textContent = t || ''; el.className = 'acmsg ' + (k || ''); } }
+function stopScan() {
+  scanOn = false;
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const v = document.getElementById('scv');
+  if (v) { v.hidden = true; v.srcObject = null; }
+}
+// The QR code holds: CT1|username|key. Fill the recovery form with it.
+function gotQr(text) {
+  const p = String(text || '').trim().split('|'), f = document.querySelector('[data-acct-form="rec"]');
+  if (!f) return false;
+  if (p.length !== 3 || p[0] !== 'CT1') { scMsg('That QR code is not a CubeTimer recovery code.', 'bad'); return false; }
+  f.elements.username.value = p[1];
+  f.elements.key.value = keyShown(p[2]);
+  scMsg('QR code read. Now choose a new password.', 'ok');
+  const n = f.elements.next; if (n) n.focus();
+  return true;
+}
+async function startScan() {
+  stopScan();
+  const d = qrDetector();
+  if (!d) { scMsg('This browser cannot read QR codes. Upload a picture of it, or type the key.', 'bad'); return; }
+  try { scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); }
+  catch (e) { scMsg('The camera is not available. Upload a picture of the QR code, or type the key.', 'bad'); return; }
+  const v = document.getElementById('scv');
+  if (!v) { stopScan(); return; }
+  v.srcObject = scanStream; v.hidden = false;
+  try { await v.play(); } catch (e) {}
+  scMsg('Point the camera at the QR code.');
+  scanOn = true;
+  const tick = async () => {
+    if (!scanOn) return;
+    if (!v.isConnected) { stopScan(); return; }   // the window was changed: turn the camera off
+    try { const r = await d.detect(v); if (r.length && gotQr(r[0].rawValue)) { stopScan(); return; } } catch (e) {}
+    setTimeout(tick, 250);
+  };
+  tick();
+}
+dl.addEventListener('change', async e => {
+  const i = e.target.closest ? e.target.closest('[data-qrfile]') : null;
+  if (!i || !i.files[0]) return;
+  const d = qrDetector(), file = i.files[0];
+  i.value = '';
+  if (!d) { scMsg('This browser cannot read QR codes from pictures. Type the key instead.', 'bad'); return; }
+  try {
+    const r = await d.detect(await createImageBitmap(file));
+    if (!r.length) scMsg('No QR code found in that picture. Try a sharper screenshot, or type the key.', 'bad');
+    else gotQr(r[0].rawValue);
+  } catch (err) { scMsg('Could not read that picture. Type the key instead.', 'bad'); }
+});
+dl.addEventListener('close', () => { stopScan(); recNow = null; });
 function acMsg(t, k) {
   const el = document.getElementById('acmsg');
   if (el) { el.textContent = t || ''; el.className = 'acmsg ' + (k || ''); }
@@ -2280,6 +2338,7 @@ function acMsg(t, k) {
 
 // The Account window: log in / create account, or the profile when signed in.
 function account() {
+  stopScan();
   if (!location.protocol.startsWith('http')) {
     open('<h3>Account</h3><p class="lead">Accounts need the timer to be opened from a web address (http or https), not from a file on your computer.</p>');
     return;
@@ -2296,10 +2355,29 @@ function account() {
 <form class="acform" data-acct-form="pw"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
 ${f('current', 'Current password', 'password', 'current-password')}${f('next', 'New password (at least 8 characters)', 'password', 'new-password', 'minlength="8"')}${f('next2', 'New password again', 'password', 'new-password', 'minlength="8"')}
 <button type="submit">Change password</button></form></section>
+<section class="dcard sg"><h4>Recovery key</h4>
+<p class="lead">If you forget your password, this QR code (or the key under it) lets you set a new one. Take a screenshot or a photo and keep it somewhere private. <b>Anyone who has it can reset your password</b>, so do not share it.</p>
+<p class="lead" id="rcst">${esc(rcTxt())}</p>
+${recNow ? `<div class="recbox"><div class="qr">${qrSvg('CT1|' + AUTH.user + '|' + recNow.key)}</div><code class="rkey">${keyShown(recNow.key)}</code>
+<p class="lead">This is the only time it is shown. Save it now. A new key replaces this one, and a key can be used once.</p>
+<div class="row btns"><button data-acct="rkcopy">Copy key</button><button data-acct="rkpng">Save QR as picture</button></div></div>` : ''}
+<form class="acform" data-acct-form="rk"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
+${f('password', 'Your password (to make a key)', 'password', 'current-password')}<button type="submit">${recHas ? 'Make a new recovery key' : 'Make a recovery key'}</button></form></section>
 <section class="dcard sg"><h4>Delete account</h4>
 <p class="lead">Deletes your account and all its solves from the server, and clears this computer. It cannot be undone. Tip: use Export data in Settings first.</p>
 <form class="acform" data-acct-form="del"><input type="text" name="username" value="${esc(AUTH.user)}" autocomplete="username" hidden>
 ${f('password', 'Your password', 'password', 'current-password')}<button type="submit" class="danger">Delete my account</button></form></section>`);
+    api('me').then(j => { recHas = !!j.recovery; const e = document.getElementById('rcst'); if (e) e.textContent = rcTxt(); }).catch(() => {});
+  } else if (acctTab === 'rec') {
+    open(`<h3>Forgot your password?</h3><p class="lead">Use the recovery key you saved (the QR code or the 25-character key) to choose a new password. A key works once.</p>
+<p id="acmsg" class="acmsg" role="alert"></p>
+<div class="row btns scanbtns"><button type="button" data-acct="scan">Scan QR with camera</button><label class="filebtn">Upload QR picture<input type="file" accept="image/*" data-qrfile hidden></label></div>
+<video id="scv" class="scv" playsinline muted hidden></video><p id="scmsg" class="acmsg" role="status"></p>
+<form class="acform" data-acct-form="rec">
+${f('username', 'Username', 'text', 'username', un)}${f('key', 'Recovery key', 'text', 'off', 'autocapitalize="characters" spellcheck="false" maxlength="40"')}
+${f('next', 'New password (at least 8 characters)', 'password', 'new-password', 'minlength="8"')}${f('next2', 'New password again', 'password', 'new-password', 'minlength="8"')}
+<button type="submit" class="on">Set new password</button></form>
+<div class="row btns"><button type="button" data-acct="tab" data-t="in">Back to log in</button></div>`);
   } else {
     const up = acctTab === 'up';
     open(`<h3>Account</h3><div class="row tabs"><button data-acct="tab" data-t="in" class="${up ? '' : 'on'}">Log in</button><button data-acct="tab" data-t="up" class="${up ? 'on' : ''}">Create account</button></div>
@@ -2308,7 +2386,7 @@ ${f('password', 'Your password', 'password', 'current-password')}<button type="s
 <form class="acform" data-acct-form="${up ? 'up' : 'in'}">
 ${f('username', 'Username', 'text', 'username', un)}${f('password', 'Password' + (up ? ' (at least 8 characters)' : ''), 'password', up ? 'new-password' : 'current-password', up ? 'minlength="8"' : '')}${up ? f('confirm', 'Password again', 'password', 'new-password', 'minlength="8"') : ''}
 <button type="submit" class="on">${up ? 'Create account' : 'Log in'}</button></form>
-${up ? '<p class="lead">Username: 3 to 24 letters, numbers, _ . or -</p>' : ''}`);
+${up ? '<p class="lead">Username: 3 to 24 letters, numbers, _ . or -<br>After creating your account, open your profile and make a recovery key, so you can get back in if you forget the password.</p>' : '<p class="lead"><button type="button" class="lnk" data-acct="forgot">Forgot your password?</button></p>'}`);
   }
 }
 
@@ -2317,7 +2395,19 @@ dl.addEventListener('click', async e => {
   if (!b) return;
   const a = b.dataset.acct;
   if (a === 'tab') { acctTab = b.dataset.t; account(); }
-  else if (a === 'sync') {
+  else if (a === 'forgot') { acctTab = 'rec'; account(); }
+  else if (a === 'scan') startScan();
+  else if (a === 'rkcopy' && recNow) {
+    try { await navigator.clipboard.writeText(keyShown(recNow.key)); acMsg('Key copied.', 'ok'); } catch (err) { acMsg('Could not copy. Select the key and copy it by hand.', 'bad'); }
+  } else if (a === 'rkpng' && recNow) {
+    qrCanvas('CT1|' + AUTH.user + '|' + recNow.key).toBlob(blob => {
+      const l = document.createElement('a');
+      l.href = URL.createObjectURL(blob);
+      l.download = 'cubetimer-recovery-' + AUTH.user + '.png';
+      l.click();
+      setTimeout(() => URL.revokeObjectURL(l.href), 5000);
+    });
+  } else if (a === 'sync') {
     b.disabled = true;
     await pull();
     for (let i = 0; pushing && i < 50; i++) await sleep(100);
@@ -2344,6 +2434,21 @@ dl.addEventListener('submit', async e => {
       await pull();
       account();
       acMsg(syncSt === 'err' ? 'Logged in, but the solves could not be synced yet.' : 'Welcome, ' + AUTH.user + '! Your solves are synced.', syncSt === 'err' ? 'bad' : 'ok');
+    } else if (kind === 'rec') {
+      if (v('next') !== v('next2')) throw new Error('The two new passwords are not the same.');
+      const r = await api('recovery/use', 'POST', { username: v('username').trim(), key: v('key'), next: v('next') });
+      setAuth({ token: r.token, user: r.username });
+      setSyncedTs(0);
+      setSync('busy');
+      recNow = null; recHas = false;
+      await pull();
+      account();
+      acMsg(syncSt === 'err' ? 'Password changed, but the solves could not be synced yet. Make a new recovery key below.' : 'Password changed. Welcome back, ' + AUTH.user + '! That recovery key is used up: make a new one below.', syncSt === 'err' ? 'bad' : 'ok');
+    } else if (kind === 'rk') {
+      const r = await api('recovery/new', 'POST', { password: v('password') });
+      recNow = { key: r.key }; recHas = true;
+      account();
+      acMsg('Recovery key made. Save it now, it is only shown once.', 'ok');
     } else if (kind === 'pw') {
       if (v('next') !== v('next2')) throw new Error('The two new passwords are not the same.');
       await api('password', 'POST', { current: v('current'), next: v('next') });

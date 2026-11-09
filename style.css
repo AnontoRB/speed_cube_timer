@@ -896,3 +896,14 @@ body.typing:not(.view) #pc[hidden] { display: none; }
 .kchip .kx { padding: 4px 7px; min-width: 0; opacity: .6; }
 .kchip .kx:hover { opacity: 1; }
 .kadd { padding: 4px 10px; min-width: 34px; border-radius: 8px; }
+
+/* recovery key (QR code) and forgot password */
+.recbox { display: grid; gap: 8px; justify-items: center; margin: 8px 0; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
+.recbox .qr { width: min(260px, 100%); background: #fff; border-radius: 8px; line-height: 0; }
+.recbox .qr svg { width: 100%; height: auto; display: block; }
+.recbox .rkey { font: 600 1.05em ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; word-break: break-all; text-align: center; user-select: all; }
+.recbox .btns { width: 100%; }
+.scv { width: 100%; max-height: 260px; border-radius: 10px; background: #000; margin-top: 8px; object-fit: cover; }
+.lnk { background: none; border: 0; padding: 0; color: var(--acc, inherit); text-decoration: underline; cursor: pointer; font: inherit; }
+.filebtn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: .45em .9em; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.scanbtns { margin-top: 6px; border-top: 0; padding-top: 0; }

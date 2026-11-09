@@ -20,6 +20,8 @@
 //                                                                          409 if another computer saved in the meantime
 //        Partial upload: {...everything except hist, delta:true, hist:{'YYYY-MM-DD': day | null}} replaces only those past days
 //        (null removes a day). The answers carry d:1 so the website knows the server understands this.
+//   POST /api/recovery/new {password}         (Bearer token) -> {key}   makes a new recovery key (shown once, replaces the old one)
+//   POST /api/recovery/use {username, key, next}  -> {token, username}   forgot password: set a new one with the key (the key is used up)
 //   POST /api/password {current, next}        (Bearer token)
 //   POST /api/delete   {password}             (Bearer token)
 
@@ -174,6 +176,12 @@ function newSession(uk) {
 const validName = n => typeof n === 'string' && /^[A-Za-z0-9_.-]{3,24}$/.test(n);
 const validPass = p => typeof p === 'string' && p.length >= 8 && p.length <= 200;
 
+// Recovery key: 25 random characters (125 bits) from an alphabet without look-alike letters. Only a hash is stored.
+const KEY_ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const newRecoveryKey = () => Array.from(crypto.randomBytes(25), x => KEY_ALPHA[x & 31]).join('');
+const cleanKey = k => String(k || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+const keyHash = (uk, k) => sha('ct-rec|' + uk + '|' + k);
+
 // ---------- API ----------
 async function api(req, res, p) {
   const m = req.method;
@@ -205,10 +213,32 @@ async function api(req, res, p) {
     return send(req, res, 200, { token: newSession(uk), username: user.name });
   }
 
+  // Forgot the password: the recovery key (from the QR code) lets the user choose a new one. The key works once.
+  if (p === '/api/recovery/use' && m === 'POST') {
+    const b = await readJson(req, MAX_SMALL), ip = ipOf(req);
+    const uk = (typeof b.username === 'string' ? b.username.trim() : '').toLowerCase(), key = 'rec|' + ip + '|' + uk;
+    if (limited(key, 5, 900e3) || limited('recip|' + ip, 30, 900e3)) throw fail(429, 'Too many tries. Wait 15 minutes and try again.');
+    const user = db.users[uk], k = cleanKey(b.key);
+    let ok = false;
+    if (user && user.rk && k.length === 25) {
+      const want = Buffer.from(user.rk, 'hex'), got = Buffer.from(keyHash(uk, k), 'hex');
+      ok = want.length === got.length && crypto.timingSafeEqual(want, got);
+    }
+    if (!ok) { hit(key, 900e3); hit('recip|' + ip, 900e3); throw fail(401, 'That username or recovery key is not right.'); }
+    if (!validPass(b.next)) throw fail(400, 'New password: at least 8 characters.');
+    const salt = crypto.randomBytes(16), hash = await scrypt(b.next, salt);
+    user.salt = salt.toString('base64');
+    user.hash = hash.toString('base64');
+    delete user.rk;   // used up: the user makes a new one after logging in
+    for (const s in db.sessions) if (db.sessions[s].u === uk) delete db.sessions[s];   // every computer must log in again
+    hits.delete(key);
+    return send(req, res, 200, { token: newSession(uk), username: user.name });
+  }
+
   const a = userFrom(req);
   if (!a) throw fail(401, 'Please log in again.');
 
-  if (p === '/api/me' && m === 'GET') return send(req, res, 200, { username: a.user.name, created: a.user.created });
+  if (p === '/api/me' && m === 'GET') return send(req, res, 200, { username: a.user.name, created: a.user.created, recovery: !!a.user.rk });
 
   if (p === '/api/logout' && m === 'POST') {
     delete db.sessions[a.key];
@@ -244,6 +274,16 @@ async function api(req, res, p) {
     return send(req, res, 200, { ts, d: 1 });
   }
 
+  if (p === '/api/recovery/new' && m === 'POST') {
+    const b = await readJson(req, MAX_SMALL), rk = 'recnew|' + a.uk;
+    if (limited(rk, 8, 900e3)) throw fail(429, 'Too many tries. Wait 15 minutes and try again.');
+    if (!(typeof b.password === 'string' && b.password.length <= 200 && await checkPassword(a.user, b.password))) { hit(rk, 900e3); throw fail(403, 'Your password is wrong.'); }
+    const key = newRecoveryKey();
+    a.user.rk = keyHash(a.uk, key);   // replaces any earlier key
+    saveDb();
+    return send(req, res, 200, { key });
+  }
+
   if (p === '/api/password' && m === 'POST') {
     const b = await readJson(req, MAX_SMALL);
     if (!validPass(b.next)) throw fail(400, 'New password: at least 8 characters.');
@@ -271,7 +311,7 @@ async function api(req, res, p) {
 
 // ---------- website files (only these are public; data/ and server.js never are) ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
-const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'bt-timer.js', 'sw.js', 'manifest.json', 'icon.svg']);
+const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'bt-timer.js', 'qr.js', 'sw.js', 'manifest.json', 'icon.svg']);
 
 function serveStatic(req, res, p) {
   let rel;

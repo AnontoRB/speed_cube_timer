@@ -36,6 +36,19 @@ GitHub Pages cannot run a server, so the same API is available as a Worker (`wor
 ## 4. Optional: Rust/WebAssembly core
 The timer works without it. If you have a Rust build in `pkg/` (made with `wasm-pack build --target web --release`), it is used automatically instead of the JavaScript core. The Rust source is not part of this repository.
 
+## Recovery key (forgot your password)
+Accounts use a username and a password. To get back in after forgetting the password, an account can have a **recovery key**:
+
+- Log in, open **Profile**, scroll to **Recovery key**, enter your password and press **Make a recovery key**. A QR code and a 25-character key are shown **once**. Take a screenshot, save the picture, or copy the key, and keep it private.
+- The QR code holds the username and the recovery key, **not the password**. The server only stores a hash of the key.
+- On the log in screen press **Forgot your password?**, then scan the QR code with the camera, upload the picture, or type the key. Choose a new password. All other computers are logged out.
+- A key works **once**. After using it, make a new one in the Profile. Making a new key also cancels the old one.
+- Anyone who has the QR code or the key can reset the password. Do not share it.
+- Wrong tries are limited (5 per 15 minutes for each username and network).
+- Scanning with the camera or from a picture needs a browser with `BarcodeDetector` (Chrome, Edge, Android, recent Safari). Everywhere else, type the key. The QR code itself is made by `qr.js` (no libraries).
+
+API: `POST /api/recovery/new {password}` (logged in) and `POST /api/recovery/use {username, key, next}`. `GET /api/me` also says whether the account has a key (`recovery`). Both `server.js` and `worker.js` have them: **deploy the server or Worker first, then the website.**
+
 ## Install as an app
 The site has a `manifest.json` and a service worker, so on a phone or in Chrome/Edge you can use "Install app" / "Add to Home Screen".
 

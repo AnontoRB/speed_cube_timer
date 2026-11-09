@@ -9,6 +9,12 @@ const fail = (status, message, extra) => Object.assign(new Error(message), { sta
 const validName = n => typeof n === 'string' && /^[A-Za-z0-9_.-]{3,24}$/.test(n);
 const validPass = p => typeof p === 'string' && p.length >= 8 && p.length <= 200;
 
+// Recovery key: 25 random characters (125 bits) from an alphabet without look-alike letters. Only a hash is stored.
+const KEY_ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const newRecoveryKey = () => Array.from(crypto.getRandomValues(new Uint8Array(25)), x => KEY_ALPHA[x & 31]).join('');
+const cleanKey = k => String(k || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+const keyHash = (uk, k) => sha('ct-rec|' + uk + '|' + k);
+
 async function sha(s) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)))); }
 async function hashPw(pw, salt) {
   const k = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
@@ -123,6 +129,25 @@ async function api(req, env, p) {
     return send(req, env, 200, { token: await newSession(env, uk, user.ver || 0, user.id), username: user.name });
   }
 
+  // Forgot the password: the recovery key (from the QR code) lets the user choose a new one. The key works once.
+  if (p === '/api/recovery/use' && m === 'POST') {
+    const b = await readJson(req, MAX_SMALL);
+    const uk = (typeof b.username === 'string' ? b.username.trim() : '').toLowerCase(), key = 'rec|' + ip + '|' + uk;
+    if (await limited(env, key, 5) || await limited(env, 'recip|' + ip, 30)) throw fail(429, 'Too many tries. Wait 15 minutes and try again.');
+    const user = await getJ(env, 'u:' + uk), k = cleanKey(b.key);
+    let ok = false;
+    if (user && user.rk && k.length === 25) ok = same(enc.encode(user.rk), enc.encode(await keyHash(uk, k)));
+    if (!ok) { await hitFail(env, key); await hitFail(env, 'recip|' + ip); throw fail(401, 'That username or recovery key is not right.'); }
+    if (!validPass(b.next)) throw fail(400, 'New password: at least 8 characters.');
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    user.salt = b64(salt); user.hash = b64(await hashPw(b.next, salt));
+    user.ver = (user.ver || 0) + 1;   // every computer must log in again
+    delete user.rk;                   // used up: the user makes a new one after logging in
+    logEv(user, req, 'Password reset with recovery key');
+    await env.KV.put('u:' + uk, JSON.stringify(user));
+    return send(req, env, 200, { token: await newSession(env, uk, user.ver, user.id), username: user.name });
+  }
+
   if (p === '/api/admin/login' && m === 'POST') {
     if (!env.ADMIN_USER || !env.ADMIN_PASS) throw fail(503, 'Admin is not set up yet.');
     const b = await readJson(req, MAX_SMALL), key = 'adm|' + ip;
@@ -181,7 +206,7 @@ async function api(req, env, p) {
   if (!a) throw fail(401, 'Please log in again.');
   const sk = 'st:' + a.user.id;
 
-  if (p === '/api/me' && m === 'GET') return send(req, env, 200, { username: a.user.name, created: a.user.created });
+  if (p === '/api/me' && m === 'GET') return send(req, env, 200, { username: a.user.name, created: a.user.created, recovery: !!a.user.rk });
   if (p === '/api/logout' && m === 'POST') { await env.KV.delete(a.key); return send(req, env, 200, { ok: true }); }
 
   if (p === '/api/state' && m === 'GET') {
@@ -206,6 +231,17 @@ async function api(req, env, p) {
     }
     await env.KV.put(sk, out, { metadata: { ts } });
     return send(req, env, 200, { ts, d: 1 });
+  }
+
+  if (p === '/api/recovery/new' && m === 'POST') {
+    const b = await readJson(req, MAX_SMALL), rk = 'recnew|' + a.uk;
+    if (await limited(env, rk, 8)) throw fail(429, 'Too many tries. Wait 15 minutes and try again.');
+    if (!(typeof b.password === 'string' && b.password.length <= 200 && await checkPassword(a.user, b.password))) { await hitFail(env, rk); throw fail(403, 'Your password is wrong.'); }
+    const key = newRecoveryKey();
+    a.user.rk = await keyHash(a.uk, key);   // replaces any earlier key
+    logEv(a.user, req, 'Made a new recovery key');
+    await env.KV.put('u:' + a.uk, JSON.stringify(a.user));
+    return send(req, env, 200, { key });
   }
 
   if (p === '/api/password' && m === 'POST') {
