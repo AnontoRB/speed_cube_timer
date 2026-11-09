@@ -47,6 +47,7 @@ const mega = () => Array.from({ length: 7 }, () => Array.from({ length: 10 }, (_
 
 // t = scramble type. R and pk (random helpers) come from app.js. Uses the (Rust or JS) scramble() for 2x2-5x5.
 function genScr(c) {
+  if (c.prac && typeof genPrac === 'function') return genPrac(c);   // 3x3 practice modes (practice.js)
   const t = c.t;
   if (['2', '3', '4', '5'].includes(t)) return scramble(t);
   if (t === '6') return nxn(6, 80);

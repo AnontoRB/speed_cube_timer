@@ -864,3 +864,21 @@ body.wide header .menu > button[data-a="set"] .ic { display: block; }
 .acmsg:empty { display: none; }
 .acmsg.ok { border-color: var(--rd); }
 .acmsg.bad { border-color: var(--hd); color: var(--hd); }
+
+/* 18. 3x3 practice modes (practice.js) ----------------------- */
+#pc { width: 100%; max-width: 46em; margin: 0 auto 6px; padding: 4px 10px; text-align: center; font-size: .9em; color: var(--mut); line-height: 1.45; }
+#pc b { color: var(--fg); }
+#pc code { font: 13px ui-monospace, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+#pc .pcr { margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--bg); color: var(--fg); }
+#pc .pcl { font-size: .9em; margin-top: 2px; }
+#pc .pcb { margin-top: 4px; }
+#pc .pcb button { padding: 2px 10px; min-height: 0; margin: 2px 3px; }
+body.run #pc { visibility: hidden; }
+.prl { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--btn-gap); margin: 8px 0; }
+.prl button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; height: auto; padding: 10px 12px; }
+.prl button small { color: var(--mut); font-size: .85em; line-height: 1.35; white-space: normal; }
+.prl button.on small { color: inherit; opacity: .85; }
+.pk { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px; margin: 6px 0; }
+.pk label { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: .9em; }
+.pk label:has(input:checked) { border-color: var(--ac); }
+.pk input { width: 16px; height: 16px; flex: none; accent-color: var(--ac); }

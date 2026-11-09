@@ -15,5 +15,11 @@ Everything is saved in `data.json` next to the server. Anyone who opens the site
     cargo install wasm-pack
     wasm-pack build --target web --release
 
+## 3x3 practice modes
+Choose 3x3, then tap **3x3 again** in the cube chooser (or the "3x3 practice modes" button). Pick what to practice:
+Full solve, Cross, Cross + F2L, F2L (cross already solved), OLL, PLL, Last layer (OLL + PLL), or an Algorithm drill
+(tick exactly the OLL / PLL / F2L algs you want). OLL, PLL and last layer can use all cases, only 2-look, or only the algs you ticked as known in Methods.
+Each mode keeps its own times and records, so your normal 3x3 stats stay clean. The code is in `practice.js`.
+
 ## Keys
 Space (hold, release) start/stop · Esc cancel inspection · Backspace delete last · 2 toggle +2 · D toggle DNF

@@ -245,7 +245,7 @@ async function api(req, res, p) {
 
 // ---------- website files (only these are public; data/ and server.js never are) ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
-const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'bt-timer.js', 'sw.js']);
+const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'bt-timer.js', 'sw.js']);
 
 function serveStatic(req, res, p) {
   let rel;

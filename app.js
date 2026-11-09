@@ -53,7 +53,7 @@ const $ = s => document.querySelector(s),
       tm = $('#tm'),
       dl = $('#dl');
 
-const allCubes = () => [...CUBES, ...(S.custom || [])],
+const allCubes = () => [...CUBES, ...(typeof PRAC !== 'undefined' ? PRAC : []), ...(S.custom || [])],
       curCube = () => allCubes().find(c => c.id === S.cur) || CUBES[1];
 const PRE = { dark: { bg: '#14161a', fg: '#eef0f3', ac: '#5b9dff' }, light: { bg: '#f6f7f9', fg: '#15181d', ac: '#2563eb' } };
 const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -289,6 +289,7 @@ let raf = 0, scr = '', mode = 'idle', holding = false, ready = false, ht, t0 = 0
 const newScr = () => {
   scr = S.set.rnd ? 'Random' : genScr(curCube());
   $('#scr').textContent = view ? '' : S.set.rnd ? 'Random scramble · solves are saved as "Random"' : (scr || '(this cube has no scramble)');
+  if (typeof pracUI === 'function') pracUI();   // 3x3 practice modes: case info under the scramble (practice.js)
 };
 
 // New scramble, reset timer and message.
@@ -1629,10 +1630,10 @@ const sideOn = k => S.set[k] !== false;
 function keepPick() { const t = dl.scrollTop; cubePicker(); dl.scrollTop = t; }
 
 function cubePicker() {
-  const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur ? 'on' : ''}">${esc(c.n)}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
+  const one = c => `<span class="cb"><button data-a="cube" data-i="${c.id}" class="${c.id === S.cur || (c.id === '3' && typeof isPrac === 'function' && isPrac(S.cur)) ? 'on' : ''}">${esc(c.n)}${c.id === '3' && typeof on3 === 'function' && on3() ? ' &#9662;' : ''}</button>${c.meth ? '' : `<button data-a="rmcube" data-i="${c.id}" class="rm" title="Remove">&times;</button>`}</span>`,
         all = allCubes(), std = ['2', '3', '4', '5', '6', '7'], var3 = ['oh', 'bld'], oth = ['pyra', 'skewb', 'mega'],
         grp = (t, f) => { const l = all.filter(f); return l.length ? `<h4>${t}</h4><div class="cubes">${l.map(one).join('')}</div>` : ''; };
-  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${grp('One-handed and blindfolded', c => var3.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p><h4>Side panel</h4><div class="row btns"><button data-a="sidetoggle">${S.set.showSide ? 'Hide the right side bar' : 'Show the right side bar'}</button></div><p class="lead">Bar on: the highlighted parts appear in the bar on the right. Bar off: they appear inside the timer area, on its right side. Highlighted = shown. Click a part to hide or show it.</p><div class="cubes">${SIDE_PARTS.map(x => `<button data-a="sidepart" data-k="${x[0]}" class="${sideOn(x[0]) ? 'on' : ''}" aria-pressed="${sideOn(x[0])}">${x[1]}</button>`).join('')}<button data-a="sideall" class="all">${SIDE_PARTS.every(x => sideOn(x[0])) ? 'Turn all off' : 'Turn all on'}</button></div><p class="lead">If you hide the menu buttons, come back here to show them again.</p>`);
+  open(`<h3>Choose a cube</h3>${grp('Cubes', c => std.includes(c.id))}${typeof pracHint === 'function' ? pracHint() : ''}${grp('One-handed and blindfolded', c => var3.includes(c.id))}${grp('Other puzzles', c => oth.includes(c.id))}${grp('My cubes', c => !c.meth)}<h4>Add your own cube</h4><div class="add"><input id="cn" placeholder="Name (e.g. Mirror cube)" maxlength="24"><select id="ct">${CTYPES.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('')}</select><button data-a="addcube" class="on">Add</button></div><p class="lead">Pick which scramble it uses. Custom cubes get their own times and a notes page under Methods.</p><h4>Side panel</h4><div class="row btns"><button data-a="sidetoggle">${S.set.showSide ? 'Hide the right side bar' : 'Show the right side bar'}</button></div><p class="lead">Bar on: the highlighted parts appear in the bar on the right. Bar off: they appear inside the timer area, on its right side. Highlighted = shown. Click a part to hide or show it.</p><div class="cubes">${SIDE_PARTS.map(x => `<button data-a="sidepart" data-k="${x[0]}" class="${sideOn(x[0]) ? 'on' : ''}" aria-pressed="${sideOn(x[0])}">${x[1]}</button>`).join('')}<button data-a="sideall" class="all">${SIDE_PARTS.every(x => sideOn(x[0])) ? 'Turn all off' : 'Turn all on'}</button></div><p class="lead">If you hide the menu buttons, come back here to show them again.</p>`);
 }
 
 function wallPrev() {
@@ -1710,7 +1711,10 @@ dl.addEventListener('click', e => {
   else if (a === 'wrm') { WALL = ''; try { localStorage.removeItem('ct2wall'); } catch (err) {} applyTheme(); wallPrev(); }
   else if (a === 'rst') { if (confirm('Reset all settings to their defaults? Your solves are not touched.')) { S.set = defSet(); applyTheme(); save(); render(); settings(); } }
   else if (a === 'openday') { view = b.dataset.k === S.day ? null : b.dataset.k; dl.close(); fresh(); }
-  else if (a === 'cube') { S.cur = b.dataset.i; save(); fresh(); keepPick(); }
+  else if (a === 'cube') {
+    if (b.dataset.i === '3' && typeof on3 === 'function' && on3()) { pracMenu(); return; }   // 3x3 tapped again: practice modes
+    S.cur = b.dataset.i; save(); fresh(); keepPick();
+  }
   else if (a === 'sidepart') { S.set[b.dataset.k] = S.set[b.dataset.k] === false; applyTheme(); save(); render(); keepPick(); }
   else if (a === 'sideall') { { const allOn = SIDE_PARTS.every(x => sideOn(x[0])); SIDE_PARTS.forEach(x => { S.set[x[0]] = !allOn; }); } applyTheme(); save(); render(); keepPick(); }
   else if (a === 'sidetoggle') { S.set.showSide = !S.set.showSide; applyTheme(); save(); render(); keepPick(); }
