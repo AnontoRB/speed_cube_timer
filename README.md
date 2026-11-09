@@ -19,6 +19,11 @@ Accounts and solves are saved in the `data/` folder next to `server.js` (put it 
 
 Leave `API_BASE` in `app.js` empty (`''`) when the same server serves the website.
 
+### How saving and syncing work
+- On this device the main data is one small key (`ct2`); every past day is its own key (`ct2h:YYYY-MM-DD`) and is only rewritten when it changed. Data saved by older versions is moved over automatically.
+- Uploads to the account send the main data plus only the past days that changed. The server answers with `d:1` to show it understands this; against an older server the website still sends everything, so deploy the server or Worker first, then the website.
+- Settings, "Keep the scramble of old solves": drop the scramble text of solves older than 1 year / 90 days / 30 days (default: forever). Times are never touched.
+
 ## 3. Accounts and sync with a Cloudflare Worker (for GitHub Pages)
 GitHub Pages cannot run a server, so the same API is available as a Worker (`worker.js`, free plan):
 
@@ -31,6 +36,12 @@ GitHub Pages cannot run a server, so the same API is available as a Worker (`wor
 ## 4. Optional: Rust/WebAssembly core
 The timer works without it. If you have a Rust build in `pkg/` (made with `wasm-pack build --target web --release`), it is used automatically instead of the JavaScript core. The Rust source is not part of this repository.
 
+## Install as an app
+The site has a `manifest.json` and a service worker, so on a phone or in Chrome/Edge you can use "Install app" / "Add to Home Screen".
+
+## Bluetooth timer debug log
+The Bluetooth log panel stays hidden unless the connection fails. To always show it, open the site with `?btdebug` added to the address, or run `localStorage.setItem('ct2btdebug','1')` in the browser console.
+
 ## 3x3 practice modes
 Choose 3x3, then tap **3x3 again** in the cube chooser (or the "3x3 practice modes" button). Pick what to practice:
 Full solve, Cross, Cross + F2L, F2L (cross already solved), OLL, PLL, Last layer (OLL + PLL), or an Algorithm drill
@@ -39,3 +50,7 @@ Each mode keeps its own times and records, so your normal 3x3 stats stay clean. 
 
 ## Keys (can be changed in Settings)
 Space (hold, release) start/stop · Shift+C cancel inspection or a running solve (Esc also cancels inspection) · Shift+D or Backspace delete last · Shift+Z undo delete · Shift+2 toggle +2 · D toggle DNF · N new scramble · K cubes · M methods · P progress · R records · C calendar · I rules · S settings
+
+## Keyboard shortcuts
+
+Every shortcut can be changed in **Settings → Keyboard shortcuts**, including the start key (Space by default). Each action can have one key, several keys or none. Click a key, then press the new key (Shift, Ctrl and Alt combinations work, e.g. `Shift+D`); click **+** to add another key and **×** to remove one. If you pick a key another action already uses, it moves to the new action. **Reset keys to default** restores everything. Tab and Enter cannot be used. Shortcuts are saved with your settings and sync with your account.

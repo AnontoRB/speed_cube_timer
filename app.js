@@ -61,7 +61,7 @@ const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark
 const defSet = () => ({
   theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, pbS: true, pb5: true, pb12: true, pb50: true, pb100: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
-  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null
+  tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null, keepScr: 'all'
 });
 
 let WALL = '';
@@ -75,10 +75,67 @@ let S = {
   data: {}
 };
 
+// ---- Saved data (start) ----
+// Everything except the past days is kept under the key ct2 (small, rewritten after every solve).
+// Each past day has its own key, ct2h:YYYY-MM-DD, and is written (and uploaded) only when it really changed.
+// Older versions kept the history inside ct2; it is moved over automatically the first time.
+const HK = 'ct2h:';
+const histH = {}, histL = {}, histU = {};   // fingerprint of every past day: now / saved on this device / sent to the server
+const histNew = {};                          // days whose text must still be written to this device
+let histCheck = true;                        // true = compare every past day with its last fingerprint before the next save
+const hsh = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return s.length + ':' + (h >>> 0); };
+
+function scanHist() {
+  histCheck = false;
+  const hh = S.hist || {};
+  for (const d in hh) {
+    if (!Object.keys(hh[d]).length) { delete hh[d]; continue; }   // a day with no cubes left is not kept
+    const str = JSON.stringify(hh[d]), h = hsh(str);
+    histH[d] = h;
+    if (histL[d] !== h) histNew[d] = str;
+  }
+  for (const d in histH) if (!(d in hh)) { delete histH[d]; delete histNew[d]; }
+}
+
+function persist() {
+  if (LOCKED) return;
+  try {
+    if (histCheck) scanHist();
+    for (const d in histNew) { localStorage.setItem(HK + d, histNew[d]); histL[d] = histH[d]; delete histNew[d]; }
+    for (const d in histL) if (!(d in histH)) { localStorage.removeItem(HK + d); delete histL[d]; }
+    const { hist, ...core } = S;
+    localStorage.setItem('ct2', JSON.stringify(core));
+  } catch (e) { warnStorage(); }
+}
+
+// Optional: drop the scramble text of solves older than the chosen number of days (times are kept).
+function trimScr() {
+  const n = +S.set.keepScr;
+  if (!n) return false;
+  const cut = dkey(Date.now() - n * 864e5);
+  let ch = false;
+  for (const day in S.hist) {
+    if (day >= cut) continue;
+    for (const id in S.hist[day]) for (const s of S.hist[day][id].solves) if (s.s) { delete s.s; ch = true; }
+  }
+  if (ch) histCheck = true;
+  return ch;
+}
+
 try {
   const j = JSON.parse(localStorage.getItem('ct2') || 'null');
   if (j) S = { ...S, ...j, set: { ...S.set, ...j.set } };
 } catch (e) {}
+S.hist = S.hist || {};
+try {
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(HK)) continue;
+    try { const t = localStorage.getItem(k), d = k.slice(HK.length); S.hist[d] = JSON.parse(t); histL[d] = hsh(t); } catch (e) {}
+  }
+} catch (e) {}
+scanHist();
+// ---- Saved data (end) ----
 
 S.data = S.data || {};
 S.known = S.known || {};
@@ -106,6 +163,11 @@ const setAuth = a => {
 // the server time of the last state this computer and the server agreed on (per account)
 const syncedTs = () => { try { const j = JSON.parse(localStorage.getItem('ct2sync') || 'null'); return j && AUTH && j.u === AUTH.user ? +j.ts || 0 : 0; } catch (e) { return 0; } };
 const setSyncedTs = ts => { try { localStorage.setItem('ct2sync', JSON.stringify({ u: AUTH ? AUTH.user : '', ts })); } catch (e) {} };
+
+// Upload only what changed. fullPush = the next upload sends everything (first upload, after a merge, ...).
+// canDelta = the server told us it understands partial uploads (an older server would treat a partial upload as the whole state).
+let fullPush = true, canDelta = false;
+if (AUTH && S.ts && (S.ts || 0) <= syncedTs()) { Object.assign(histU, histH); fullPush = false; }   // nothing changed on this device since the last upload
 
 function setSync(st) {
   syncSt = st;
@@ -160,7 +222,20 @@ async function doPush() {
   let ok = false;
   try {
     if (!S.ts) S.ts = Date.now();
-    const ts = S.ts, r = await api('state?base=' + syncedTs(), 'PUT', S);
+    if (histCheck) scanHist();
+    const ts = S.ts, delta = canDelta && !fullPush, sent = { ...histH };
+    let body = S;
+    if (delta) {   // everything except the past days, plus only the past days that changed (null = removed)
+      const { hist, ...core } = S, days = {};
+      for (const d in histH) if (histH[d] !== histU[d]) days[d] = S.hist[d];
+      for (const d in histU) if (!(d in histH)) days[d] = null;
+      body = { ...core, delta: true, hist: days };
+    }
+    const r = await api('state?base=' + syncedTs(), 'PUT', body);
+    if (r.d) canDelta = true;
+    for (const d in histU) delete histU[d];
+    Object.assign(histU, sent);
+    fullPush = false;
     setSyncedTs(r.ts || ts);
     retry409 = 0;
     setSync('ok');
@@ -184,7 +259,7 @@ function warnStorage() {
 const save = () => {
   if (LOCKED) return;
   S.ts = Math.max(Date.now(), (S.ts || 0) + 1);   // always moves forward, even if two computers' clocks differ
-  try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) { warnStorage(); }
+  persist();
   push();
 };
 
@@ -226,7 +301,7 @@ function rollover() {
     if (moved) S.data = {};
   }
   S.day = today;
-  if (moved) { undoDel = []; save(); }
+  if (moved) { undoDel = []; trimScr(); histCheck = true; save(); }
   return moved;
 }
 
@@ -339,7 +414,7 @@ function rstrip(d) {
 // The list of finished rounds (side column on desktop, Today popup on phones).
 function roundsHtml(d, max) {
   const rbest = minOf(d.rounds.map(r => r.res).filter(isFinite));
-  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${r.n}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${r.n}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + r.part + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.map(esc).join(', ')}</div>`; }).slice(0, max || Infinity).join('');
+  return [...d.rounds].reverse().map((r, i, a) => { const p = a[i + 1], dd = p && isFinite(r.res) && isFinite(p.res) ? r.res - p.res : null; return `<div data-a="round" data-n="${+r.n || 0}" class="pick" style="cursor:pointer" title="Click to open this round"><b>Round ${+r.n || 0}: ${fx(r.res)}${d.rounds.length > 1 && r.res === rbest ? ' ★' : ''}</b> ${r.part ? '(' + (+r.part || 0) + ' of 5 solves)' : '(ao5)'}${dd === null ? '' : ` <span class="${dd <= 0 ? 'g' : 'r'}">${dd <= 0 ? '▼' : '▲'}${ds(dd)}</span>`} · ${r.v.map(esc).join(', ')}</div>`; }).slice(0, max || Infinity).join('');
 }
 
 function render() {
@@ -471,6 +546,7 @@ function bestAoUpTo(id, v, k, upto) {
 // Personal-best stars: rebuilt from the whole history, so deleting or editing a time keeps them correct.
 function repb(id) {
   AOC = {};
+  histCheck = true;   // this can change the stars on past days
   let b = Infinity, n = 0;
   for (const s of allSolves(id)) {
     const x = val(s);
@@ -1076,8 +1152,8 @@ setInterval(() => {
   if (!view) document.querySelectorAll('.stv').forEach(el => { el.textContent = dur(S.stime[k]); });
   if (now - stSaved > 15000) {
     stSaved = now;
-    if (now - stPushed > 300000) { stPushed = now; save(); }   // full save (also syncs the account)
-    else if (!LOCKED) { try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {} }   // screen time alone stays on this device
+    if (now - stPushed > 300000) { stPushed = now; histCheck = true; save(); }   // full save (also syncs the account)
+    else persist();   // screen time alone stays on this device
   }
 }, 1000);
 
@@ -1110,7 +1186,7 @@ function solveInfo(s) {
     if (fin.length >= 20) h += line(`Faster than ${Math.round(fin.filter(y => y > v).length / fin.length * 100)}% of all ${fin.length} ${esc(name())} solves`);
   }
   if (s.p === 2) h += line('Includes +2 (inspection past 15 s or a judge penalty)');
-  if (s.r) h += line('Round ' + s.r);
+  if (s.r) h += line('Round ' + esc(s.r));
   return h;
 }
 
@@ -1160,7 +1236,7 @@ function add(t, p, why) {
       // the same details as the round popup: the five times (best and worst in brackets) and their scrambles
       const lo = vs.indexOf(Math.min(...vs)), hi = vs.indexOf(Math.max(...vs)), fullDet = S.set.det !== 'short';
       x.events.push({ k: 'rsum', text: `<div class="chips">${rs.map((y, k) => { const t = fmtP(y); return `<span><small>${ORD[k]}</small> <b>${k === lo || k === hi ? '(' + t + ')' : t}</b></span>`; }).join('')}</div>` +
-        (fullDet ? `<details class="rsd"><summary>Scrambles</summary><div class="dtl">Best and worst are dropped (in brackets).</div>` + rs.map((y, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-wrap">${esc(y.s)}</span></div>`).join('') + `</details>` : '') +
+        (fullDet ? `<details class="rsd"><summary>Scrambles</summary><div class="dtl">Best and worst are dropped (in brackets).</div>` + rs.map((y, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-wrap">${esc(y.s || '(scramble not kept)')}</span></div>`).join('') + `</details>` : '') +
         `<button data-a="round" data-n="${rn}" style="margin-top:6px">Open round ${rn}</button>` });
       e.round++;
     }
@@ -1192,7 +1268,7 @@ function add(t, p, why) {
 const ib = document.createElement('button');
 ib.id = 'icancel'; ib.type = 'button'; ib.tabIndex = -1; ib.hidden = true; ib.textContent = 'Cancel inspection';
 $('#msg').after(ib);
-const ibLabel = () => { ib.textContent = (mode === 'run' ? 'Cancel solve (' : 'Cancel inspection (') + keyOf('cancel') + ')'; };
+const ibLabel = () => { const k = mode === 'run' ? keyOf('cancel') : keyOf('cancel') || keyOf('cancelinsp'); ib.textContent = (mode === 'run' ? 'Cancel solve' : 'Cancel inspection') + (k ? ' (' + k + ')' : ''); };
 // Stops a solve that is running and throws the time away (nothing is saved).
 function cancelRun() {
   if (mode !== 'run') return;
@@ -1202,7 +1278,7 @@ function cancelRun() {
   ib.hidden = true;
   tm.className = '';
   tm.textContent = '0.00';
-  $('#msg').textContent = 'Solve cancelled. The time was not saved. Hold SPACE or touch to try again.';
+  $('#msg').textContent = 'Solve cancelled. The time was not saved. Hold ' + startName() + ' or touch to try again.';
   focusUI();
 }
 function cancelInsp() {
@@ -1213,7 +1289,7 @@ function cancelInsp() {
   ib.hidden = true;
   tm.className = '';
   tm.textContent = '0.00';
-  $('#msg').textContent = 'Inspection cancelled. Hold SPACE or touch to start again.';
+  $('#msg').textContent = 'Inspection cancelled. Hold ' + startName() + ' or touch to start again.';
   focusUI();
 }
 ib.addEventListener('click', () => (mode === 'run' ? cancelRun() : cancelInsp()));
@@ -1393,25 +1469,49 @@ function up() {
   ready = false;
 }
 
-// ---- Keyboard shortcuts (can be changed in Settings) ----
+// ---- Keyboard shortcuts: every action can have one key, several keys or none, and all of them can be changed in Settings ----
+// ['id', 'label', [default keys]]. A key looks like D, Shift+D, Ctrl+K, Space, Escape, Backspace, F2 or ArrowLeft.
 const KEYACT = [
-  ['cancel', 'Cancel inspection or running solve', 'Shift+C'],
-  ['del', 'Delete last solve', 'Shift+D'],
-  ['dnf', 'DNF on/off for last solve', 'D'],
-  ['p2', '+2 on/off for last solve', 'Shift+2'],
-  ['undo', 'Undo delete', 'Shift+Z'],
-  ['scr', 'New scramble', 'N'],
-  ['cubes', 'Choose a cube', 'K'],
-  ['meth', 'Methods', 'M'],
-  ['prog', 'Progress graph', 'P'],
-  ['rec', 'Records', 'R'],
-  ['cal', 'Calendar', 'C'],
-  ['rules', 'Rules and info', 'I'],
-  ['set', 'Settings', 'S']
+  ['start', 'Start / stop the timer (hold, release)', ['Space']],
+  ['cancel', 'Cancel inspection or running solve', ['Shift+C']],
+  ['cancelinsp', 'Cancel inspection only', ['Escape']],
+  ['del', 'Delete last solve', ['Shift+D', 'Backspace', 'Delete']],
+  ['dnf', 'DNF on/off for last solve', ['D']],
+  ['p2', '+2 on/off for last solve', ['Shift+2']],
+  ['undo', 'Undo delete', ['Shift+Z']],
+  ['scr', 'New scramble', ['N']],
+  ['rnd', 'Random scramble on/off', []],
+  ['typing', 'Type times in on/off', []],
+  ['today', 'Back to today (from a past day)', []],
+  ['cubes', 'Choose a cube', ['K']],
+  ['prac', '3x3 practice modes', []],
+  ['meth', 'Methods', ['M']],
+  ['prog', 'Progress graph', ['P']],
+  ['rec', 'Records', ['R']],
+  ['cal', 'Calendar', ['C']],
+  ['rules', 'Rules and info', ['I']],
+  ['acct', 'Account', []],
+  ['bt', 'Bluetooth timer', []],
+  ['set', 'Settings', ['S']]
 ];
-const KEYOPEN = { cubes: 'cubes', meth: 'meth', prog: 'progress', rec: 'rec', cal: 'cal', rules: 'rules', set: 'set' };
-const keyOf = a => ((S.set.keys || {})[a]) ?? KEYACT.find(x => x[0] === a)[2],
-      actOf = cb => cb ? (KEYACT.find(x => keyOf(x[0]) === cb) || [])[0] : undefined;
+const KEYOPEN = { cubes: 'cubes', meth: 'meth', prog: 'progress', rec: 'rec', cal: 'cal', rules: 'rules', set: 'set', acct: 'acct', bt: 'bt', typing: 'typing', rnd: 'rnd' };
+const normKeys = k => Array.isArray(k) ? k.filter(c => typeof c === 'string' && c) : typeof k === 'string' && k ? [k] : [];
+// The keys of one action. Older versions saved a single key (a string) per action; that still works.
+function keysOf(a) {
+  const ks = S.set.keys || {};
+  if (a in ks) {
+    const l = normKeys(ks[a]);
+    // older versions always accepted Backspace and Delete for "delete last solve"
+    if (a === 'del' && typeof ks[a] === 'string') for (const c of ['Backspace', 'Delete']) if (!Object.values(ks).some(v => normKeys(v).includes(c))) l.push(c);
+    return l;
+  }
+  const used = new Set(Object.values(ks).flatMap(normKeys));   // a default key someone else took is not given out twice
+  return KEYACT.find(x => x[0] === a)[2].filter(c => !used.has(c));
+}
+const show = c => c.replace('Escape', 'Esc'),
+      keyOf = a => show(keysOf(a)[0] || ''),   // the first key of an action, for messages ('' = no key)
+      actOf = cb => cb ? (KEYACT.find(x => keysOf(x[0]).includes(cb)) || [])[0] : undefined,
+      startName = () => { const k = keyOf('start'); return k === 'Space' ? 'SPACE' : k || 'the timer area'; };
 // Same letter on any keyboard layout: built from the physical key (e.code).
 function comboOf(e) {
   const c = e.code || '';
@@ -1419,13 +1519,38 @@ function comboOf(e) {
   const k = /^Key[A-Z]$/.test(c) ? c.slice(3) : /^(Digit|Numpad)\d$/.test(c) ? c.slice(-1) : c;
   return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + k;
 }
-const hint = () => S.set.typing ? 'Type your time and press Enter · 12.34 · 23 = 23 s · 1:23.45 · D = DNF · add + for a +2 time (12.34+)' : `Hold SPACE or touch to start · ${keyOf('del')} deletes last · ${keyOf('p2')} = +2 · ${keyOf('dnf')} = DNF`;
-const keysHelp = () => `${keyOf('del')} (or Backspace/Delete) removes the last solve, ${keyOf('undo')} undoes a delete, ${keyOf('p2')} toggles +2, ${keyOf('dnf')} toggles DNF, ${keyOf('cancel')} cancels the inspection or a running solve (the time is not saved), ${keyOf('scr')} gives a new scramble. ${KEYACT.filter(x => KEYOPEN[x[0]]).map(x => keyOf(x[0]) + ' ' + x[1]).join(', ')}. You can change all of these in Settings.`;
+const hint = () => S.set.typing ? 'Type your time and press Enter · 12.34 · 23 = 23 s · 1:23.45 · D = DNF · add + for a +2 time (12.34+)'
+  : `Hold ${startName()} or touch to start` + [['del', 'deletes last'], ['p2', '= +2'], ['dnf', '= DNF']].map(([a, t]) => keyOf(a) ? ` · ${keyOf(a)} ${t}` : '').join('');
+const keysHelp = () => KEYACT.filter(x => keysOf(x[0]).length).map(x => `${keysOf(x[0]).map(show).join(' or ')} = ${x[1]}`).join('; ') + '. Every one of these can be changed, added to or removed in Settings.';
 function keyLabels() {
   ibLabel();
   const m = $('#msg');
-  if (m && /^(Hold SPACE|Type your time)/.test(m.textContent)) m.textContent = hint();
-  document.querySelectorAll('[data-a="keyset"]').forEach(b => { b.textContent = keyOf(b.dataset.act) || 'none'; });
+  if (m && /^(Hold .* to start|Type your time)/.test(m.textContent)) m.textContent = hint();
+  document.querySelectorAll('[data-a="keyset"]').forEach(b => { b.textContent = b.dataset.i === '+' ? '+' : show(keysOf(b.dataset.act)[+b.dataset.i] || ''); });
+}
+
+// Editing the key lists. Every action is copied into S.set.keys first, so one change never moves other keys around.
+function keyMap() { const m = {}; for (const x of KEYACT) m[x[0]] = keysOf(x[0]).slice(); return m; }
+// i = the position of the key to replace, or '+' to add one. A key another action had is taken from it (its label is returned).
+function setKey(act, i, cb) {
+  const m = keyMap(), mine = m[act].slice();
+  let from = '';
+  for (const a in m) if (a !== act && m[a].includes(cb)) { from = a; m[a] = m[a].filter(c => c !== cb); }
+  if (i === '+') mine.push(cb); else if (mine[+i] !== undefined) mine[+i] = cb;
+  m[act] = mine.filter((c, k) => mine.indexOf(c) === k);
+  S.set.keys = m;
+  save();
+  return from;
+}
+function delKey(act, i) { const m = keyMap(); m[act].splice(i, 1); S.set.keys = m; save(); }
+// Redraw the Settings window (keeping the scroll position) after a key change.
+function keysUI(note) {
+  const t = dl.scrollTop;
+  settings();
+  dl.scrollTop = t;
+  keyLabels();
+  const el = document.getElementById('kmsg');
+  if (el && note) el.textContent = note;
 }
 
 // Runs a shortcut. Returns true when it did something.
@@ -1437,58 +1562,57 @@ function runKey(a) {
   if (a === 'p2') return edit(() => { s.p = s.p === 2 ? 0 : 2; });
   if (a === 'undo') { if (view || !undoDel.length) return false; undoSolve(); return true; }
   if (a === 'scr') { if (view) return false; fresh(); return true; }
+  if (a === 'today') { if (!view) return false; view = null; fresh(); return true; }
+  if (a === 'prac') { if (typeof pracMenu !== 'function' || !on3()) return false; pracMenu(); return true; }
   if (KEYOPEN[a]) { const b = document.querySelector(`[data-a="${KEYOPEN[a]}"]`); if (b) { b.click(); return true; } }
   return false;
 }
 
-// Choosing a new key in Settings: click the button, then press the keys. Esc cancels.
-let capAct = null;
-function endCap() { capAct = null; keyLabels(); }
+// Choosing a key in Settings: click the key (or +), then press the keys you want. Click again, or anywhere else, to cancel.
+let cap = null;   // { act, i } while a key is being chosen
+function endCap() { cap = null; keyLabels(); }
+dl.addEventListener('close', () => { if (cap) endCap(); });
 document.addEventListener('keydown', e => {
-  if (!capAct) return;
+  if (!cap) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  if (e.code === 'Escape') { endCap(); return; }
   const cb = comboOf(e);
   if (!cb) return;                                   // only a modifier so far
-  if (['Space', 'Tab', 'Enter', 'Shift+Space'].includes(cb)) { alert('Space, Tab and Enter cannot be used.'); return; }
-  const other = actOf(cb);
-  S.set.keys = S.set.keys || {};
-  if (other && other !== capAct) S.set.keys[other] = keyOf(capAct);   // swap, so no key does two things
-  S.set.keys[capAct] = cb;
-  save(); endCap();
+  if (/(^|\+)(Tab|Enter)$/.test(cb)) { alert('Tab and Enter cannot be used: they are needed to move around and to confirm.'); return; }
+  const c = cap;
+  cap = null;
+  const from = setKey(c.act, c.i, cb);
+  keysUI(from ? `${show(cb)} was used by "${KEYACT.find(x => x[0] === from)[1]}", so it moved here.` : '');
 }, true);
 
+let startCode = '';   // the physical key that started the timer, so releasing it (with or without Shift) lets go
 document.addEventListener('keydown', e => {
   if (dl.open) return;
   if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
-  const act = actOf(comboOf(e));
+  const cb = comboOf(e), act = actOf(cb),
+        start = !!cb && (act === 'start' || (e.code === 'Space' && keysOf('start').includes('Space')));   // Space still works with Shift held
   if (mode === 'run') {
     if (act === 'cancel') { e.preventDefault(); cancelRun(); return; }
-    if (!comboOf(e)) return;   // Shift, Ctrl or Alt alone must not stop the timer (they start a shortcut)
+    if (!cb) return;   // Shift, Ctrl or Alt alone must not stop the timer (they start a shortcut)
   }
-  if (mode === 'insp' && (act === 'cancel' || e.code === 'Escape')) { e.preventDefault(); cancelInsp(); return; }
-  if (mode === 'idle' && !e.repeat) {
-    let a = act;
-    if (!a && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) a = 'del';
-    if (a && runKey(a)) { e.preventDefault(); return; }
-  }
+  if (mode === 'insp' && (act === 'cancel' || act === 'cancelinsp')) { e.preventDefault(); cancelInsp(); return; }
+  if (mode === 'idle' && !e.repeat && act && runKey(act)) { e.preventDefault(); return; }
   if (S.set.typing && !view && mode === 'idle') {
-    if (e.code === 'Space') { e.preventDefault(); ti.focus(); }
+    if (start) { e.preventDefault(); ti.focus(); }
     else if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) ti.focus();   // the digit lands in the box
     return;
   }
-  if (e.code === 'Space') {
+  if (start) {
     e.preventDefault();
-    if (!e.repeat) down();
+    if (!e.repeat) { startCode = e.code; down(); }
   } else if (mode === 'run') {
     down();
   }
 });
 
 document.addEventListener('keyup', e => {
-  if (e.code === 'Space' && !dl.open) {
-    e.preventDefault();
-    up();
+  if (startCode && e.code === startCode) {
+    startCode = '';
+    if (!dl.open) { e.preventDefault(); up(); }
   }
 });
 
@@ -1627,14 +1751,14 @@ const INFO = [
     ['Solves/hour', 'Shown in the side column. Practice pace: it only counts once you solved for at least 5 minutes in a day.']
   ]],
   ['Keys and controls', [
-    ['Start', 'Hold SPACE (or touch the timer area) until it turns green, then release. Any key or tap stops the timer.'],
+    ['Start', 'Hold %START% (or touch the timer area) until it turns green, then release. Any key or tap stops the timer.'],
     ['Shortcuts', '%KEYS%'],
     ['Click a solve', 'Click a 1st to 5th solve box to see its scramble and time, add +2 or DNF, or delete it.']
   ]]
 ];
 
 function rulesInfo() {
-  const sec = ([t, items]) => `<section class="dcard sg"><h4>${t}</h4>${items.map(([k, v]) => `<p style="margin:8px 0"><b>${k}</b><br>${v === '%KEYS%' ? keysHelp() : v}</p>`).join('')}</section>`;
+  const sec = ([t, items]) => `<section class="dcard sg"><h4>${t}</h4>${items.map(([k, v]) => `<p style="margin:8px 0"><b>${k}</b><br>${v === '%KEYS%' ? keysHelp() : v.replace('%START%', startName())}</p>`).join('')}</section>`;
   open('<h3>Rules and info</h3><p class="lead" style="margin:0">Everything you need to know for competitive cubing (WCA based). Green tag: applied automatically by this timer. Grey tag: honor system.</p>' +
     '<h4>Timer rules</h4><ul style="padding-left:18px">' + RULES.map(r => `<li><span class="tg ${r[0] == 'h' ? 'h' : ''}">${r[0] == 'a' ? 'applied' : 'honor'}</span>${r[1]}</li>`).join('') + '</ul>' +
     INFO.map(sec).join(''));
@@ -1677,10 +1801,11 @@ ${g('Wallpaper', '<div class="wall"><div id="wp" class="wp"></div><div class="bg
 ${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner roundness (px)', 0, 24, 1) + r('th', 'Timer area height (%)', 30, 70, 2) + c('showScr', 'Show scramble') + c('showRs', 'Show 1st to 5th solve boxes') + c('showSt', 'Show stats (best, mean, ao5)') + c('showSide', 'Show the right side bar (off = its parts appear inside the timer area)'))}
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
+${g('Saved data', sl('keepScr', 'Keep the scramble of old solves', [['all', 'Forever'], ['365', '1 year'], ['90', '90 days'], ['30', '30 days']]) + '<p class="lead">Older solves keep their times; only the scramble text is dropped, which keeps your saved and synced data small. Recent days are never touched. Dropped scrambles cannot be brought back.</p>')}
 ${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
 ${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('pbS', 'Celebrate a new best single') + c('pb5', 'Celebrate a new best ao5') + c('pb12', 'Celebrate a new best ao12') + c('pb50', 'Celebrate a new best ao50') + c('pb100', 'Celebrate a new best ao100') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
-${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Click a key, then press the keys you want (for example Shift+D). Esc cancels. If a key is already used, the two swap. Space is always the timer.</p>' + KEYACT.map(x => `<div class="set"><span class="lb">${x[1]}</span><button data-a="keyset" data-act="${x[0]}">${keyOf(x[0])}</button></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
+${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Every action can have one key, several keys, or none. Click a key, then press the keys you want (for example Shift+D, Ctrl+K, F2 or Space). Click it again to cancel. Click + to add another key and × to remove one. A key that another action already uses moves to this one. Tab and Enter cannot be used.</p><p id="kmsg" class="lead" role="status"></p>' + KEYACT.map(x => `<div class="set kr"><span class="lb">${x[1]}</span><span class="kc">${keysOf(x[0]).map((c, i) => `<span class="kchip"><button data-a="keyset" data-act="${x[0]}" data-i="${i}">${esc(show(c))}</button><button data-a="keydel" data-act="${x[0]}" data-i="${i}" class="kx" title="Remove this key" aria-label="Remove key ${esc(show(c))}">&times;</button></span>`).join('')}<button data-a="keyset" data-act="${x[0]}" data-i="+" class="kadd" title="Add a key" aria-label="Add a key">+</button></span></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
 ${g('Your data', '<div class="row btns"><span class="bg"><button data-a="exp">Export data</button><button data-a="imp">Import data</button></span><span class="bg">' + (view ? '' : '<button data-a="delall">Delete everything</button>') + '<button data-a="rst">Reset settings</button></span></div>')}`);
   wallPrev();
 }
@@ -1698,6 +1823,7 @@ dl.addEventListener('input', e => {
   }
   if (k === 'dec') v = +v;
   s[k] = v;
+  if (k === 'keepScr') trimScr();
   if (k === 'rnd') newScr();
   if (k === 'typing' && !view && mode === 'idle') $('#msg').textContent = hint();
   if (k === 'theme' && PRE[v]) {
@@ -1714,6 +1840,7 @@ dl.addEventListener('input', e => {
 let sel = -1;
 
 dl.addEventListener('click', e => {
+  if (cap) { const kb = e.target.closest('[data-a=keyset]'), same = kb && kb.dataset.act === cap.act && kb.dataset.i === cap.i; endCap(); if (same) return; }   // a click cancels choosing a key
   if (e.target === dl) { dl.close(); return; } // click outside the window (on the dark backdrop)
   const rr = e.target.closest('[data-a=round]');
   if (rr) { openRound(+rr.dataset.n); return; }
@@ -1725,6 +1852,9 @@ dl.addEventListener('click', e => {
   if (view && ['p2', 'dnf', 'del', 'yes1', 'yes2', 'delall'].includes(a)) return;
   if (a === 'back') dlBack();
   else if (a === 'close') dl.close();
+  else if (a === 'keyset') { cap = { act: b.dataset.act, i: b.dataset.i }; b.textContent = 'Press keys…'; }
+  else if (a === 'keydel') { delKey(b.dataset.act, +b.dataset.i); keysUI(); }
+  else if (a === 'keyreset') { S.set.keys = {}; save(); keysUI('Keys are back to their defaults.'); }
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
   else if (a === 'pg') progress(b.dataset.s);
@@ -1752,6 +1882,7 @@ dl.addEventListener('click', e => {
       undoDel = undoDel.filter(u => u.ev !== c.id);
       delete S.data[c.id];
       for (const k in S.hist) delete S.hist[k][c.id];
+      histCheck = true;
       if (S.rec && S.rec.c) delete S.rec.c[c.id];
       if (S.cur === c.id) S.cur = '3';
       save(); newScr(); tm.textContent = '0.00'; render(); keepPick();
@@ -1766,7 +1897,7 @@ dl.addEventListener('click', e => {
     const out = { ...S, app: 'cubetimer', fmt: 2, exported: Date.now() };
     if (WALL) out.wall = WALL;
     // also a raw copy of everything this browser has stored for the app (any key, so nothing is missed); only the sign-in token is left out, because anyone holding the file could use it to log in
-    try { out.storage = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k !== 'ct2auth') out.storage[k] = localStorage.getItem(k); } } catch (e) {}
+    try { out.storage = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k !== 'ct2auth' && !k.startsWith(HK)) out.storage[k] = localStorage.getItem(k); } } catch (e) {}
     if (AUTH && AUTH.user) out.account = { user: AUTH.user };
     l.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
     l.download = 'cubetimer-backup-' + dkey(Date.now()) + '.json';
@@ -1789,6 +1920,7 @@ dl.addEventListener('click', e => {
     i.click();
   } else if (a === 'impmerge' && pendImp) {
     S = mergeState(pendImp);
+    histCheck = true;
     if (wantSet()) applySet(S, pendImp);
     for (const id of new Set([...Object.keys(S.data), ...Object.values(S.hist).flatMap(h => Object.keys(h))])) { repb(id); repRec(id); }
     save(); location.reload();
@@ -1797,6 +1929,7 @@ dl.addEventListener('click', e => {
     for (const k of ['app', 'fmt', 'exported', 'wall']) delete N[k];
     N.set = keep;
     S = N;
+    histCheck = true;
     if (wantSet()) applySet(S, pendImp);
     save(); location.reload();
   } else if ((a === 'p2' || a === 'dnf') && s) { const v = a === 'p2' ? 2 : 'D'; s.p = s.p === v ? 0 : v; refix(); save(); render(); dl.close(); }
@@ -1805,6 +1938,7 @@ dl.addEventListener('click', e => {
     // final step: wipe every solve, round, past day and record on every cube
     S.data = {};
     S.hist = {};
+    histCheck = true;
     S.rec = { c: {}, v: 1 };
     undoDel = [];
     AOC = {};
@@ -1826,8 +1960,6 @@ document.addEventListener('click', e => {
   else if (a === 'typing' && mode === 'idle') setTyping(!S.set.typing);
   else if (a === 'rnd' && mode === 'idle' && !view) { S.set.rnd = !S.set.rnd; save(); newScr(); syncMode(); }
   else if (a === 'rules') rulesInfo();
-  else if (a === 'keyset') { capAct = b.dataset.act; b.textContent = 'Press keys…'; }
-  else if (a === 'keyreset') { S.set.keys = {}; capAct = null; save(); keyLabels(); }
   else if (a === 'set') settings();
   else if (a === 'acct' && mode === 'idle') account();
   else if (a === 'rec' && mode === 'idle') records();
@@ -1900,12 +2032,13 @@ function todayInfo() {
 function openSolve(i) {
   sel = i;
     const s = D().solves[sel];
-    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${esc(s.s)}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
+    open(`<h3>#${sel + 1} · ${fmtS(s)}</h3><div style="white-space:pre-line;font-family:ui-monospace,monospace;margin-bottom:8px">${esc(s.s || '(scramble not kept)')}</div><small style="color:var(--mut)">${new Date(s.d).toLocaleString()}</small>${solveInfo(s)}${view ? '' : `<div class="row btns"><span class="seg" role="group" aria-label="Penalty"><button data-a="p2" class="${s.p === 2 ? 'on' : ''}" title="Add a 2 second penalty (key 2)">+2</button><button data-a="dnf" class="${s.p === 'D' ? 'on' : ''}" title="Did not finish (key D)">DNF</button></span><button data-a="del" class="danger" title="Delete this solve">Delete</button></div>`}`);
 }
 
 // ---- Import: merge a saved file into the data that is already here (no solve is added twice) ----
 let pendImp = null;
-const skey = y => (y.d || 0) + '|' + y.t + '|' + y.s,
+// the scramble is only part of the key for very old solves without a time stamp (old scrambles can be dropped, see Settings)
+const skey = y => (y.d || 0) + '|' + y.t + (y.d ? '' : '|' + (y.s || '')),
       countAll = o => Object.values(o.data || {}).reduce((a, e) => a + e.solves.length, 0) + Object.values(o.hist || {}).reduce((a, h) => a + Object.values(h).reduce((b, e) => b + e.solves.length, 0), 0);
 
 // Adds the incoming solves of one cube on one day to an existing entry. If the two files were
@@ -1972,11 +2105,12 @@ function openRound(n) {
       return `<button data-a="solve" data-i="${I[k]}"><small>${ORD[k]}</small> <b>${w}</b></button>`;
     }).join('')}</div>` +
     (full ? `<div class="dtl">Best and worst are dropped (in brackets). The ao5 is the mean of the other three.</div>` : '') +
-    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-line">${esc(s.s)}</span></div>`).join(''));
+    L.map((s, k) => `<div class="dtl"><b>${ORD[k]}</b> · <span style="font-family:ui-monospace,monospace;white-space:pre-line">${esc(s.s || '(scramble not kept)')}</span></div>`).join(''));
 }
 
 migrate();
 rollover();
+if (trimScr()) save();
 applyTheme();
 newScr();
 render();
@@ -2075,7 +2209,8 @@ function afterSwap(merged) {
   if (merged) for (const id of new Set([...Object.keys(S.data || {}), ...Object.values(S.hist).flatMap(h => Object.keys(h))])) { repb(id); repRec(id); }
   migrate();
   rollover();
-  try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {}
+  histCheck = true;
+  persist();
   applyTheme();
   newScr();
   render();
@@ -2085,8 +2220,9 @@ async function pull() {
   if (!location.protocol.startsWith('http') || !AUTH || mode !== 'idle') return;
   setSync('busy');
   try {
-    const sv = (await api('state')).state, st = syncedTs();
-    if (!sv) { await doPush(); return; }                        // new account: upload what is on this computer
+    const resp = await api('state'), sv = resp.state, st = syncedTs();
+    if (resp.d) canDelta = true;
+    if (!sv) { fullPush = true; await doPush(); return; }                        // new account: upload what is on this computer
     const local = (S.ts || 0) > st;                              // changed here since the last sync
     if (sv.ts === st) { if (local) await doPush(); else setSync('ok'); return; }
     if (local && (countAll(S) || (S.custom && S.custom.length))) {                                  // changed on both sides: merge
@@ -2095,12 +2231,16 @@ async function pull() {
       S = M;
       S.ts = Math.max(Date.now(), (sv.ts || 0) + 1);
       setSyncedTs(sv.ts || 0);
+      fullPush = true;   // the merged result differs from the server: send it whole once
       afterSwap(true);
       save();
     } else {                                                     // only the server changed: take it
       S = { ...S, ...sv, set: { ...S.set, ...sv.set } };
       setSyncedTs(sv.ts || 0);
       afterSwap(false);
+      for (const d in histU) delete histU[d];
+      Object.assign(histU, histH);   // this device now holds exactly what the server holds
+      fullPush = false;
       setSync('ok');
     }
   } catch (e) {
@@ -2114,7 +2254,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function wipeLocal() {
   LOCKED = true;
   clearTimeout(pt);
-  try { for (const k of ['ct2', 'ct2sync', 'ct2auth', 'ct2wall']) localStorage.removeItem(k); } catch (e) {}
+  try {
+    for (const k of ['ct2', 'ct2sync', 'ct2auth', 'ct2wall']) localStorage.removeItem(k);
+    for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith(HK)) localStorage.removeItem(k); }
+  } catch (e) {}
 }
 
 async function logout() {
@@ -2221,7 +2364,7 @@ dl.addEventListener('submit', async e => {
 pull();
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { if (mode === 'idle' && rollover()) { tm.textContent = '0.00'; render(); } pull(); }
-  else if (!LOCKED) { try { localStorage.setItem('ct2', JSON.stringify(S)); } catch (e) {} }   // keep the last screen time when the tab is left
+  else { histCheck = true; persist(); }   // keep the last screen time when the tab is left
 });
 setInterval(() => { if (mode === 'idle' && !dl.open && rollover()) { tm.textContent = '0.00'; render(); } }, 30000);
 setInterval(() => { if (AUTH && !document.hidden && mode === 'idle' && !dl.open) pull(); }, 90000);   // pick up solves done on another computer

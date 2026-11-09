@@ -15,22 +15,31 @@
   let lastT = 0, lastAt = 0, readyT = 0, got = 0;
 
   // ================= log panel =================
-  let box = null, pre = null;
+  // The log is always collected, but the panel only pops up when debug is on (add ?btdebug to the address, or
+  // run localStorage.setItem('ct2btdebug','1') once) or when the connection fails, so it can be copied and sent.
+  let box = null, pre = null, closed = false;
+  const lines = [];
+  const dbg = (() => { try { if (localStorage.getItem('ct2btdebug') === '1') return true; } catch (e) {} return /[?&]btdebug\b/.test(location.search); })();
   function logBox() {
     if (box && box.isConnected) return;
     box = document.createElement('div');
     box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2000;background:#000e;color:#9f9;font:11px ui-monospace,Menlo,Consolas,monospace;padding:6px;max-height:40vh;display:flex;flex-direction:column;user-select:text;-webkit-user-select:text';
     box.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:4px"><button type="button" data-bt="copy" style="min-height:32px">Copy log</button><button type="button" data-bt="close" style="min-height:32px">Close</button></div><pre style="margin:0;overflow:auto;white-space:pre-wrap;flex:1"></pre>';
     pre = box.querySelector('pre');
-    box.querySelector('[data-bt=close]').onclick = () => box.remove();
+    pre.textContent = lines.join('');
+    box.querySelector('[data-bt=close]').onclick = () => { closed = true; box.remove(); };
     box.querySelector('[data-bt=copy]').onclick = () => { try { navigator.clipboard.writeText(pre.textContent); } catch (e) {} };
     document.body.appendChild(box);
   }
   function log(t) {
     console.log('[BT]', t);
+    lines.push(new Date().toISOString().slice(14, 23) + ' ' + t + '\n');
+    if (lines.length > 400) lines.splice(0, lines.length - 300);   // the log must not grow forever
+    if ((dbg && !closed) || (box && box.isConnected)) showLog();
+  }
+  function showLog() {
     logBox();
-    pre.textContent += new Date().toISOString().slice(14, 23) + ' ' + t + '\n';
-    if (pre.textContent.length > 30000) pre.textContent = pre.textContent.slice(-20000);   // the log must not grow forever
+    pre.textContent = lines.join('');
     pre.scrollTop = pre.scrollHeight;
   }
   const hex = b => Array.from(b, x => (x & 255).toString(16).padStart(2, '0')).join(' ');
@@ -333,10 +342,11 @@
       }
       setStatus(got ? 'Connected' : 'No reply');   // click the button again to disconnect
       log(got ? 'Ready. Touch the pads and do a solve.' : 'NO REPLY to either hello. MAC used: ' + mac);
+      if (!got) { closed = false; showLog(); }   // something is wrong: show the log so it can be copied
     } catch (err) {
       setStatus('Bluetooth');
       log('Error: ' + err.message);
-      if (err.name !== 'NotFoundError') alert('Bluetooth failed: ' + err.message);
+      if (err.name !== 'NotFoundError') { closed = false; showLog(); alert('Bluetooth failed: ' + err.message); }
     } finally {
       connecting = false;
     }

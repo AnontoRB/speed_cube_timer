@@ -1,57 +1,250 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14161a">
-  <meta name="color-scheme" content="dark light">
-  <meta name="description" content="CubeTimer: a speedcubing timer with scrambles, averages, methods and optional sync.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E">
-  <title>CubeTimer</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <noscript><p style="padding:16px;font-family:sans-serif">CubeTimer needs JavaScript. Please turn it on for this site.</p></noscript>
-  <header>
-    <button id="logo" data-a="cubes" title="Choose a cube"><b>CubeTimer</b><span id="ev"></span> &#9662;</button>
-    <span class="sp"></span>
-    <div id="mini" data-a="mini" role="button" tabindex="0" aria-label="Today: tap for details"></div>
-    <nav class="menu" aria-label="Main menu">
-      <button id="dt" data-a="cal" title="Calendar"></button>
-      <button data-a="meth" title="Methods" aria-label="Methods"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg><span class="tx">Methods</span></button>
-      <button class="mcal" data-a="cal" title="Calendar" aria-label="Calendar"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg><span class="tx">Calendar</span></button>
-      <button data-a="progress" title="Progress graph" aria-label="Progress graph"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="tx">Progress</span></button>
-      <button data-a="rec" title="Records" aria-label="Records"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg><span class="tx">Records</span></button>
-      <button data-a="rules" title="Rules and info" aria-label="Rules and info"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span class="tx">Rules and info</span></button>
-      <button data-a="bt" title="Connect Bluetooth Timer" aria-label="Connect Bluetooth Timer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7l12 10-6 5V2l6 5L6 17"/></svg><span class="tx">Bluetooth</span></button>
-      <button data-a="acct" title="Log in" aria-label="Account"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="tx">Log in</span></button>
-      <button data-a="set" title="Settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg><span class="tx">Settings</span></button>
-    </nav>
-  </header>
-  <div id="wrap">
-<div id="mn">
-  <div id="vb" hidden></div>
-  <div id="scw"><div id="scr" data-a="newscr" title="Click for a new scramble"></div><div class="tools" role="group" aria-label="Scramble and entry options"><button id="rn" data-a="rnd" title="Save scramble as Random" aria-label="Random scramble" aria-pressed="false"><span class="ti">&#127922;</span><span class="lb">Random</span></button><button id="ty" data-a="typing" title="Type times in" aria-label="Type times in" aria-pressed="false"><span class="ti">&#9000;</span><span class="lb">Type times</span></button></div></div>
-  <main id="tz">
-    <div id="tm">0.00</div>
-    <div id="msg">Hold SPACE or touch to start · Shift+D deletes last · Shift+2 = +2 · D = DNF</div>
-  </main>
-  <section id="rs"></section>
-  <section id="st"></section>
-</div>
-<aside id="side">
-  <div class="row">
-    <b id="cnt" data-a="progress" role="button" title="Show my progress graph"></b>
-  </div>
-  <div id="goal"></div>
-  <div id="rd"></div>
-</aside>
-</div>
-  <dialog id="dl"></dialog>
-  <script src="algs.js" defer></script>
-  <script src="cubes.js" defer></script>
-  <script src="practice.js" defer></script>
-  <script src="app.js" defer></script>
-  <script src="bt-timer.js" defer></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#14161a" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="CubeTimer: a speedcubing timer with scrambles, averages, methods and optional sync."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CubeTimer" />
+    <meta
+      property="og:description"
+      content="A speedcubing timer with scrambles, averages, methods and optional sync."
+    />
+    <meta name="twitter:card" content="summary" />
+    <link rel="manifest" href="manifest.json" />
+    <title>CubeTimer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <noscript
+      ><p style="padding: 16px; font-family: sans-serif">
+        CubeTimer needs JavaScript. Please turn it on for this site.
+      </p></noscript
+    >
+    <header>
+      <button id="logo" data-a="cubes" title="Choose a cube">
+        <b>CubeTimer</b><span id="ev"></span> &#9662;
+      </button>
+      <span class="sp"></span>
+      <div
+        id="mini"
+        data-a="mini"
+        role="button"
+        tabindex="0"
+        aria-label="Today: tap for details"
+      ></div>
+      <nav class="menu" aria-label="Main menu">
+        <button id="dt" data-a="cal" title="Calendar"></button>
+        <button data-a="meth" title="Methods" aria-label="Methods">
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z" />
+            <path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z" /></svg
+          ><span class="tx">Methods</span>
+        </button>
+        <button
+          class="mcal"
+          data-a="cal"
+          title="Calendar"
+          aria-label="Calendar"
+        >
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="4" y="5" width="16" height="16" rx="2" />
+            <path d="M4 10h16M8 3v4M16 3v4" /></svg
+          ><span class="tx">Calendar</span>
+        </button>
+        <button
+          data-a="progress"
+          title="Progress graph"
+          aria-label="Progress graph"
+        >
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 3v18h18" />
+            <path d="M7 15l4-4 3 3 5-6" /></svg
+          ><span class="tx">Progress</span>
+        </button>
+        <button data-a="rec" title="Records" aria-label="Records">
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+            <path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" /></svg
+          ><span class="tx">Records</span>
+        </button>
+        <button
+          data-a="rules"
+          title="Rules and info"
+          aria-label="Rules and info"
+        >
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v5M12 8h.01" /></svg
+          ><span class="tx">Rules and info</span>
+        </button>
+        <button
+          data-a="bt"
+          title="Connect Bluetooth Timer"
+          aria-label="Connect Bluetooth Timer"
+        >
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 7l12 10-6 5V2l6 5L6 17" /></svg
+          ><span class="tx">Bluetooth</span>
+        </button>
+        <button data-a="acct" title="Log in" aria-label="Account">
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" /></svg
+          ><span class="tx">Log in</span>
+        </button>
+        <button data-a="set" title="Settings" aria-label="Settings">
+          <svg
+            class="ic"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2" />
+            <circle cx="14" cy="6" r="2" />
+            <circle cx="8" cy="12" r="2" />
+            <circle cx="16" cy="18" r="2" /></svg
+          ><span class="tx">Settings</span>
+        </button>
+      </nav>
+    </header>
+    <div id="wrap">
+      <div id="mn">
+        <div id="vb" hidden></div>
+        <div id="scw">
+          <div id="scr" data-a="newscr" title="Click for a new scramble"></div>
+          <div
+            class="tools"
+            role="group"
+            aria-label="Scramble and entry options"
+          >
+            <button
+              id="rn"
+              data-a="rnd"
+              title="Save scramble as Random"
+              aria-label="Random scramble"
+              aria-pressed="false"
+            >
+              <span class="ti">&#127922;</span
+              ><span class="lb">Random</span></button
+            ><button
+              id="ty"
+              data-a="typing"
+              title="Type times in"
+              aria-label="Type times in"
+              aria-pressed="false"
+            >
+              <span class="ti">&#9000;</span><span class="lb">Type times</span>
+            </button>
+          </div>
+        </div>
+        <main id="tz">
+          <div id="tm">0.00</div>
+          <div id="msg" role="status" aria-live="polite">
+            Hold SPACE or touch to start · Shift+D deletes last · Shift+2 = +2 ·
+            D = DNF
+          </div>
+        </main>
+        <section id="rs"></section>
+        <section id="st"></section>
+      </div>
+      <aside id="side">
+        <div class="row">
+          <b
+            id="cnt"
+            data-a="progress"
+            role="button"
+            title="Show my progress graph"
+          ></b>
+        </div>
+        <div id="goal"></div>
+        <div id="rd"></div>
+      </aside>
+    </div>
+    <dialog id="dl" aria-label="CubeTimer window"></dialog>
+    <script src="algs.js" defer></script>
+    <script src="cubes.js" defer></script>
+    <script src="practice.js" defer></script>
+    <script src="app.js" defer></script>
+    <script src="bt-timer.js" defer></script>
+  </body>
 </html>

@@ -16,8 +16,10 @@
 //   POST /api/logout                          (Bearer token)
 //   GET  /api/me                              (Bearer token)
 //   GET  /api/state                           (Bearer token) -> {state: {...} | null}
-//   PUT  /api/state?base=<ts of the server version the data is based on>  {...whole app state}  (Bearer token) -> {ts}
+//   PUT  /api/state?base=<ts of the server version the data is based on>  {...whole app state}  (Bearer token) -> {ts, d:1}
 //                                                                          409 if another computer saved in the meantime
+//        Partial upload: {...everything except hist, delta:true, hist:{'YYYY-MM-DD': day | null}} replaces only those past days
+//        (null removes a day). The answers carry d:1 so the website knows the server understands this.
 //   POST /api/password {current, next}        (Bearer token)
 //   POST /api/delete   {password}             (Bearer token)
 
@@ -137,6 +139,24 @@ async function readJson(req, limit) {
 }
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
+// Partial upload: the website sends the state without its past days (hist) plus only the days that changed.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+function applyDelta(old, b) {
+  const days = b.hist;
+  if (!days || typeof days !== 'object' || Array.isArray(days)) throw fail(400, 'Invalid request.');
+  const hist = Object.fromEntries(Object.entries((old && old.hist) || {}));
+  for (const d of Object.keys(days)) {
+    const v = days[d];
+    if (!DAY.test(d)) throw fail(400, 'Invalid request.');
+    if (v === null) delete hist[d];
+    else if (v && typeof v === 'object' && !Array.isArray(v)) hist[d] = v;
+    else throw fail(400, 'Invalid request.');
+  }
+  const out = { ...b, hist };
+  delete out.delta;
+  return out;
+}
+
 function userFrom(req) {
   const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorization || '');
   if (!m) return null;
@@ -199,7 +219,7 @@ async function api(req, res, p) {
   if (p === '/api/state' && m === 'GET') {
     let state = null;
     try { state = JSON.parse(fs.readFileSync(stateFile(a.user.id), 'utf8')); } catch (e) { /* none yet */ }
-    return send(req, res, 200, { state });
+    return send(req, res, 200, { state, d: 1 });
   }
 
   if (p === '/api/state' && m === 'PUT') {
@@ -208,14 +228,20 @@ async function api(req, res, p) {
     try { b = JSON.parse(text); } catch (e) { throw fail(400, 'Invalid request.'); }
     if (!b || typeof b !== 'object' || Array.isArray(b) || !b.data || typeof b.data !== 'object') throw fail(400, 'That is not CubeTimer data.');
     const ts = Number(b.ts) || 0;
-    let old = 0, exists = false;
-    try { old = Number(JSON.parse(fs.readFileSync(stateFile(a.user.id), 'utf8')).ts) || 0; exists = true; } catch (e) { /* none yet */ }
+    let old = 0, exists = false, oldState = null;
+    try { oldState = JSON.parse(fs.readFileSync(stateFile(a.user.id), 'utf8')); old = Number(oldState.ts) || 0; exists = true; } catch (e) { /* none yet */ }
     // The client says which server version its data is based on (?base=). If another computer saved in the
     // meantime the versions differ and the client must merge first, so nothing is ever overwritten by accident.
     const base = Number(new URL(req.url, 'http://x').searchParams.get('base')) || 0;
     if (exists && (base !== old || ts < old)) throw Object.assign(fail(409, 'The server has newer data.'), { extra: { ts: old } });
-    writeAtomic(stateFile(a.user.id), text);
-    return send(req, res, 200, { ts });
+    let out = text;
+    if (b.delta === true) {
+      if (!exists) throw Object.assign(fail(409, 'The server has no data yet.'), { extra: { ts: 0 } });   // the website then sends everything
+      out = JSON.stringify(applyDelta(oldState, b));
+      if (Buffer.byteLength(out) > MAX_STATE) throw fail(413, 'That is too much data.');
+    }
+    writeAtomic(stateFile(a.user.id), out);
+    return send(req, res, 200, { ts, d: 1 });
   }
 
   if (p === '/api/password' && m === 'POST') {
@@ -245,7 +271,7 @@ async function api(req, res, p) {
 
 // ---------- website files (only these are public; data/ and server.js never are) ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
-const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'bt-timer.js', 'sw.js']);
+const PUBLIC = new Set(['index.html', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'bt-timer.js', 'sw.js', 'manifest.json', 'icon.svg']);
 
 function serveStatic(req, res, p) {
   let rel;

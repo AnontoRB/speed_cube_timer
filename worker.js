@@ -39,6 +39,24 @@ async function readJson(req, limit) {
 }
 const getJ = async (env, k) => { const t = await env.KV.get(k); return t ? JSON.parse(t) : null; };
 
+// Partial upload: the website sends the state without its past days (hist) plus only the days that changed (null = removed).
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+function applyDelta(old, b) {
+  const days = b.hist;
+  if (!days || typeof days !== 'object' || Array.isArray(days)) throw fail(400, 'Invalid request.');
+  const hist = Object.fromEntries(Object.entries((old && old.hist) || {}));
+  for (const d of Object.keys(days)) {
+    const v = days[d];
+    if (!DAY.test(d)) throw fail(400, 'Invalid request.');
+    if (v === null) delete hist[d];
+    else if (v && typeof v === 'object' && !Array.isArray(v)) hist[d] = v;
+    else throw fail(400, 'Invalid request.');
+  }
+  const out = { ...b, hist };
+  delete out.delta;
+  return out;
+}
+
 // Short account history kept on the user record (last 50 events). Only rare events are logged, so KV writes stay low.
 const logEv = (user, req, e) => {
   (user.log = user.log || []).push({ t: Date.now(), e, c: (req.cf && req.cf.country) || '' });
@@ -57,9 +75,9 @@ async function adminOk(req, env) {
   return same(enc.encode(await hmac(env, 'admin|' + m[1])), enc.encode(m[2]));
 }
 
-async function newSession(env, uk, ver) {
+async function newSession(env, uk, ver, id) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  await env.KV.put('s:' + await sha(token), JSON.stringify({ u: uk, ver }), { expirationTtl: SESSION_S });
+  await env.KV.put('s:' + await sha(token), JSON.stringify({ u: uk, ver, id }), { expirationTtl: SESSION_S });
   return token;
 }
 async function auth(req, env) {
@@ -68,7 +86,8 @@ async function auth(req, env) {
   const key = 's:' + await sha(m[1]), s = await getJ(env, key);
   if (!s) return null;
   const user = await getJ(env, 'u:' + s.u);
-  if (!user || (user.ver || 0) !== (s.ver || 0)) return null;
+  // the session must belong to this exact account (its id), not just to a username that may have been deleted and registered again
+  if (!user || !s.id || s.id !== user.id || (user.ver || 0) !== (s.ver || 0)) return null;
   return { user, key, uk: s.u };
 }
 async function limited(env, key, max) { return (+(await env.KV.get('rl:' + key)) || 0) >= max; }
@@ -89,7 +108,7 @@ async function api(req, env, p) {
     logEv(user, req, 'Created account');
     await env.KV.put('u:' + uk, JSON.stringify(user));
     await hitFail(env, 'reg|' + ip, 3600);
-    return send(req, env, 200, { token: await newSession(env, uk, 0), username: b.username });
+    return send(req, env, 200, { token: await newSession(env, uk, 0, user.id), username: b.username });
   }
 
   if (p === '/api/login' && m === 'POST') {
@@ -101,7 +120,7 @@ async function api(req, env, p) {
     if (!ok) { await hitFail(env, key); throw fail(401, 'Wrong username or password.'); }
     logEv(user, req, 'Logged in');
     await env.KV.put('u:' + uk, JSON.stringify(user));
-    return send(req, env, 200, { token: await newSession(env, uk, user.ver || 0), username: user.name });
+    return send(req, env, 200, { token: await newSession(env, uk, user.ver || 0, user.id), username: user.name });
   }
 
   if (p === '/api/admin/login' && m === 'POST') {
@@ -167,7 +186,7 @@ async function api(req, env, p) {
 
   if (p === '/api/state' && m === 'GET') {
     const t = await env.KV.get(sk);
-    return send(req, env, 200, { state: t ? JSON.parse(t) : null });
+    return send(req, env, 200, { state: t ? JSON.parse(t) : null, d: 1 });
   }
 
   if (p === '/api/state' && m === 'PUT') {
@@ -179,8 +198,14 @@ async function api(req, env, p) {
     const exists = cur.value !== null, old = exists ? Number(cur.metadata && cur.metadata.ts) || 0 : 0;
     const base = Number(new URL(req.url).searchParams.get('base')) || 0;
     if (exists && (base !== old || ts < old)) throw fail(409, 'The server has newer data.', { ts: old });
-    await env.KV.put(sk, text, { metadata: { ts } });
-    return send(req, env, 200, { ts });
+    let out = text;
+    if (b.delta === true) {
+      if (!exists) throw fail(409, 'The server has no data yet.', { ts: 0 });   // the website then sends everything
+      out = JSON.stringify(applyDelta(JSON.parse(cur.value), b));
+      if (out.length > MAX_STATE) throw fail(413, 'That is too much data.');
+    }
+    await env.KV.put(sk, out, { metadata: { ts } });
+    return send(req, env, 200, { ts, d: 1 });
   }
 
   if (p === '/api/password' && m === 'POST') {
@@ -191,7 +216,7 @@ async function api(req, env, p) {
     a.user.salt = b64(salt); a.user.hash = b64(await hashPw(b.next, salt)); a.user.ver = (a.user.ver || 0) + 1;   // other computers must log in again
     logEv(a.user, req, 'Changed password');
     await env.KV.put('u:' + a.uk, JSON.stringify(a.user));
-    await env.KV.put(a.key, JSON.stringify({ u: a.uk, ver: a.user.ver }), { expirationTtl: SESSION_S });
+    await env.KV.put(a.key, JSON.stringify({ u: a.uk, ver: a.user.ver, id: a.user.id }), { expirationTtl: SESSION_S });
     return send(req, env, 200, { ok: true });
   }
 

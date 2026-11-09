@@ -886,3 +886,13 @@ body.run #pc { visibility: hidden; }
 /* typing mode: the practice banner hangs above the box (like the message hangs below), so it never pushes the box onto the message */
 body.typing:not(.view) #pc { position: absolute; left: 0; right: 0; bottom: calc(50% + 40px); top: 6px; width: min(46em, 100%); margin: 0 auto; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
 body.typing:not(.view) #pc[hidden] { display: none; }
+
+/* Keyboard shortcut editor (Settings) */
+.kr { align-items: center; gap: 8px; flex-wrap: wrap; }
+.kr .lb { flex: 1 1 200px; }
+.kc { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
+.kchip { display: inline-flex; border: 1px solid var(--line, #3a3f48); border-radius: 8px; overflow: hidden; }
+.kchip button { border: 0; border-radius: 0; margin: 0; padding: 4px 10px; min-width: 34px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.kchip .kx { padding: 4px 7px; min-width: 0; opacity: .6; }
+.kchip .kx:hover { opacity: 1; }
+.kadd { padding: 4px 10px; min-width: 34px; border-radius: 8px; }
