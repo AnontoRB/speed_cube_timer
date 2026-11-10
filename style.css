@@ -907,3 +907,8 @@ body.typing:not(.view) #pc[hidden] { display: none; }
 .lnk { background: none; border: 0; padding: 0; color: var(--acc, inherit); text-decoration: underline; cursor: pointer; font: inherit; }
 .filebtn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: .45em .9em; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 .scanbtns { margin-top: 6px; border-top: 0; padding-top: 0; }
+
+/* "Goal for this day" button */
+.gedit { display: block; margin: 4px 0 6px; padding: 3px 10px; font-size: 12px; border-radius: 8px; opacity: .8; }
+.gedit:hover { opacity: 1; }
+body.no-goal #side .gedit { display: none; }

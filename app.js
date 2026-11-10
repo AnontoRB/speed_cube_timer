@@ -922,7 +922,7 @@ const rk = k => ({ pb: 5, milestone: 4, goal: 3 }[k] || 0),
 
 // Daily goal: quarter, half, three quarters, one to go, reached, and bonus solves after that.
 function goalEvent(x, after, best) {
-  const g = S.set.goal;
+  const g = goalFor(S.day || dkey(Date.now()));
   if (!g) return;
   const m = {};
   if (g >= 8) m[Math.ceil(g * .25)] = ['goalp', `📈 A quarter of the way to your daily goal (${after}/${g}). Nice start!`];
@@ -1099,9 +1099,22 @@ const streak = (id = S.cur) => {
   return n;
 };
 
+// Goal for one day: a goal set just for that day (the pencil button) wins over the one in Settings.
+const goalFor = k => { const o = (S.set.goalDay || {})[k]; return o === undefined ? S.set.goal : o; };
+function editDayGoal() {
+  const key = view || S.day || dkey(Date.now()), cur = goalFor(key),
+        v = prompt(`Solve goal for ${key === (S.day || dkey(Date.now())) ? 'today' : key} only (0 = off). Leave empty to use the Settings goal (${S.set.goal || 'off'}).`, cur);
+  if (v === null) return;
+  const m = Object.assign({}, S.set.goalDay), n = v.trim() === '' ? NaN : Math.floor(+v);
+  if (v.trim() !== '' && !(n >= 0 && n <= 1000)) { alert('Please enter a number from 0 to 1000.'); return; }
+  if (isNaN(n)) delete m[key]; else m[key] = n;
+  S.set.goalDay = m;
+  save();
+  render();
+}
 // Small summary in the top right corner on phones and tablets: solves today + daily goal bar.
 function miniPanel(d) {
-  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), gc = cubeDay(key), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
+  const key = view || S.day || dkey(Date.now()), gl = goalFor(key), gc = cubeDay(key), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
   return `<b>${plural(d.solves.length, 'solve')}${view ? '' : ' today'}</b>` +
     (gl ? `<div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} · ${pc}%${gc >= gl ? ' ✓' : ''}</small>` : '') +
     `<div class="mx">${weekHtml(key)}${tilesHtml()}</div>`;
@@ -1118,7 +1131,7 @@ function openDay(k) {
 // Last 7 days as small bars (goal reached = green). The week always ends today, so the bars stay put when you click one;
 // the day you are looking at is marked (blue letter). Click a bar to open that day.
 function weekHtml(key) {
-  const gl = S.set.goal, cnt = k => cubeDay(k), days = [], b0 = new Date((S.day || dkey(Date.now())) + 'T00:00:00');
+  const cnt = k => cubeDay(k), days = [], b0 = new Date((S.day || dkey(Date.now())) + 'T00:00:00');
   for (let i = 6; i >= 0; i--) {
     const d = new Date(b0);
     d.setDate(d.getDate() - i);
@@ -1126,8 +1139,8 @@ function weekHtml(key) {
     days.push({ k, c: cnt(k), w: 'SMTWTFS'[d.getDay()] });
   }
   if (!days.some(y => y.c)) return '';
-  const mx = Math.max(gl || 0, ...days.map(y => y.c), 1);
-  return `<div class="wk">${days.map(y => `<div class="${gl && y.c >= gl ? 'ok' : ''}${y.k === key ? ' td' : ''}" data-a="wkday" data-k="${y.k}" role="button" tabindex="0" title="${y.k}: ${plural(y.c, 'solve')} · click to open this day"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
+  const mx = Math.max(...days.map(y => goalFor(y.k) || 0), ...days.map(y => y.c), 1);
+  return `<div class="wk">${days.map(y => `<div class="${goalFor(y.k) && y.c >= goalFor(y.k) ? 'ok' : ''}${y.k === key ? ' td' : ''}" data-a="wkday" data-k="${y.k}" role="button" tabindex="0" title="${y.k}: ${plural(y.c, 'solve')} · click to open this day"><span class="bar"><i style="height:${Math.round(y.c / mx * 100)}%"></i></span><small>${y.w}</small></div>`).join('')}</div>`;
 }
 
 // Screen time, DNFs, solving time and solves per hour for the shown day.
@@ -1159,7 +1172,7 @@ setInterval(() => {
 
 // Right column: daily goal, day streak, last 7 days, and a few numbers for today's session.
 function goalPanel() {
-  const gl = S.set.goal, key = view || S.day || dkey(Date.now()), cnt = k => cubeDay(k),
+  const key = view || S.day || dkey(Date.now()), gl = goalFor(key), cnt = k => cubeDay(k),
         gc = cnt(key), sk = view ? 0 : streak(), bestSk = Math.max(recOf(S.cur).days || 0, sk), pc = gl ? Math.min(100, Math.round(gc / gl * 100)) : 0;
   let g = '', h = '';
   if (gl) g = `<small>Daily goal</small><div class="gbar"><i style="width:${pc}%"></i></div><small>${gc} / ${gl} solves${view ? '' : ' today'} · ${pc}%${gc >= gl ? ' ✓' : ` · ${gl - gc} to go`}${gc > gl ? ` (+${gc - gl} bonus)` : ''}</small>`;
@@ -1168,7 +1181,8 @@ function goalPanel() {
   // only the daily goal box (bar + numbers) opens the progress graph and has the border; streak, week and tiles are outside it
   // (with no daily goal set, the streak/week part becomes the button so the graph can still be opened)
   const btn = (html, c = '') => `<div class="gbtn ${c}" data-a="progress" role="button" tabindex="0" title="Show my progress graph">${html}</div>`;
-  return (g ? btn(g, 'gg') + h : btn(h)) + tilesHtml();
+  const edit = `<button class="gedit" data-a="goalday" title="Change the solve goal for this day only" aria-label="Change the solve goal for this day only">✎ Goal for this day</button>`;
+  return (g ? btn(g, 'gg') + edit + h : btn(h) + edit) + tilesHtml();
 }
 
 // Detail lines for one solve in its popup: PB, rank that day, percentile, penalties.
@@ -1854,6 +1868,7 @@ dl.addEventListener('click', e => {
   else if (a === 'close') dl.close();
   else if (a === 'keyset') { cap = { act: b.dataset.act, i: b.dataset.i }; b.textContent = 'Press keys…'; }
   else if (a === 'keydel') { delKey(b.dataset.act, +b.dataset.i); keysUI(); }
+  else if (a === 'goalday') { editDayGoal(); if (dl.open && /<h3>Today/.test(dl.innerHTML)) todayInfo(); }
   else if (a === 'keyreset') { S.set.keys = {}; save(); keysUI('Keys are back to their defaults.'); }
   else if (a === 'calm') { cal.m += +b.dataset.d; if (cal.m < 0) { cal.m = 11; cal.y--; } else if (cal.m > 11) { cal.m = 0; cal.y++; } calendar(); }
   else if (a === 'calday') calendar(b.dataset.k);
@@ -1956,6 +1971,7 @@ document.addEventListener('click', e => {
   if (a === 'cubes' && mode === 'idle') cubePicker();
   else if (a === 'cal' && mode === 'idle') { cal.sel = ''; calendar(); }
   else if (a === 'today') { view = null; fresh(); }
+  else if (a === 'goalday') editDayGoal();
   else if (a === 'newscr' && mode === 'idle' && !view) fresh();
   else if (a === 'typing' && mode === 'idle') setTyping(!S.set.typing);
   else if (a === 'rnd' && mode === 'idle' && !view) { S.set.rnd = !S.set.rnd; save(); newScr(); syncMode(); }

@@ -1,5 +1,5 @@
 // Network first (so updates always show), cached copy used when offline.
-const C = 'cubetimer-v18';
+const C = 'cubetimer-v19';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon.svg', 'style.css', 'app.js', 'algs.js', 'cubes.js', 'practice.js', 'qr.js', 'bt-timer.js', 'pkg/cubetimer.js', 'pkg/cubetimer_bg.wasm'];
 
 self.addEventListener('install', e => {
