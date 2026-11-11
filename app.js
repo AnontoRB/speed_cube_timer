@@ -42,8 +42,10 @@ let stats = v => {
   return [fin.length ? Math.min(...fin) : NaN, fin.length ? fin.reduce((a, c) => a + c) / fin.length : NaN, v.length >= 5 ? ao5(v.slice(-5)) : NaN, b];
 };
 
-let insp = s => s >= 17 ? -1 : s > 15 ? 2 : 0,
-    insp_text = s => s < 15 ? String(Math.ceil(15 - s)) : '+2';
+// Inspection length in seconds (Settings, default 12; the official rules use 15). +2 after it, DNF 2 s later.
+const IL = () => { try { const v = +S.set.il; return v >= 5 && v <= 60 ? v : 15; } catch (e) { return 15; } };
+let insp = s => s >= IL() + 2 ? -1 : s > IL() ? 2 : 0,
+    insp_text = s => s < IL() ? String(Math.ceil(IL() - s)) : '+2';
 
 if (location.protocol.startsWith('http') && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -59,7 +61,7 @@ const PRE = { dark: { bg: '#14161a', fg: '#eef0f3', ac: '#5b9dff' }, light: { bg
 const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 
 const defSet = () => ({
-  theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, rins: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
+  theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, il: 12, padsw: false, rins: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, pbS: true, pb5: true, pb12: true, pb50: true, pb100: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
   tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null, keepScr: 'all'
 });
@@ -1412,13 +1414,13 @@ function tick() {
     tm.textContent = S.set.hide ? '…' : S.set.secs ? F(performance.now() - t0, 2).split('.')[0] : F(performance.now() - t0, S.set.dec);
   } else if (mode === 'insp') {
     const e = (performance.now() - i0) / 1000;
-    if (e >= 8 && !b8) { b8 = 1; beep(600); }
-    if (e >= 12 && !b12) { b12 = 1; beep(900); }
+    if (e >= IL() - 7 && !b8) { b8 = 1; beep(600); }     // 8 s and 12 s warnings when the length is 15
+    if (e >= IL() - 3 && !b12) { b12 = 1; beep(900); }
     if (insp(e) < 0) {
       mode = 'idle';
       ib.hidden = true;
       tm.className = '';
-      $('#msg').textContent = 'Inspection over 17 s: DNF';
+      $('#msg').textContent = 'Inspection over ' + (IL() + 2) + ' s: DNF';
       add(0, 'D', 'insp');
       return;
     }
@@ -1480,7 +1482,7 @@ function up() {
     ib.hidden = false;
     t0 = performance.now();
     tm.className = '';
-    $('#msg').textContent = pen ? '+2 penalty (inspection over 15 s)' : '';
+    $('#msg').textContent = pen ? '+2 penalty (inspection over ' + IL() + ' s)' : '';
     tick();
   } else {
     tm.className = mode === 'insp' ? 'insp' : '';
@@ -1726,9 +1728,9 @@ const dlBack = () => {
 
 const RULES = [
   ['a', 'New scramble for every attempt.'],
-  ['a', '15 s inspection with beeps at 8 s and 12 s (can be turned off).'],
+  ['a', 'Inspection (15 s by the official rules, 12 s by default here, set it in Settings) with beeps near the end (can be turned off).'],
   ['a', 'Hold, wait for green, release to start. Any key or tap stops.'],
-  ['a', 'Start between 15 and 17 s = +2. Past 17 s = DNF.'],
+  ['a', 'Start up to 2 s after the inspection ends = +2. Later = DNF.'],
   ['a', 'Manual +2 and DNF buttons on every solve for judge penalties.'],
   ['a', 'Ao5: best and worst dropped, two or more DNFs = DNF. Times are truncated, not rounded.'],
   ['h', '3x3 OH: solve and inspect with one hand only.'],
@@ -1827,7 +1829,7 @@ ${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner round
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
 ${g('Saved data', sl('keepScr', 'Keep the scramble of old solves', [['all', 'Forever'], ['365', '1 year'], ['90', '90 days'], ['30', '30 days']]) + '<p class="lead">Older solves keep their times; only the scramble text is dropped, which keeps your saved and synced data small. Recent days are never touched. Dropped scrambles cannot be brought back.</p>')}
-${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('rins', 'Right half of the timer starts the inspection (left half starts a solve without it)') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
+${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', 'Inspection') + r('il', 'Inspection length (s)', 5, 30, 1) + c('rins', 'Right half of the timer starts the inspection (left half starts a solve without it)') + c('padsw', 'Physical timer: use the LEFT pad for the inspection (turn on if your timer\'s pads are the other way round)') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
 ${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('pbS', 'Celebrate a new best single') + c('pb5', 'Celebrate a new best ao5') + c('pb12', 'Celebrate a new best ao12') + c('pb50', 'Celebrate a new best ao50') + c('pb100', 'Celebrate a new best ao100') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
 ${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Every action can have one key, several keys, or none. Click a key, then press the keys you want (for example Shift+D, Ctrl+K, F2 or Space). Click it again to cancel. Click + to add another key and × to remove one. A key that another action already uses moves to this one. Tab and Enter cannot be used.</p><p id="kmsg" class="lead" role="status"></p>' + KEYACT.map(x => `<div class="set kr"><span class="lb">${x[1]}</span><span class="kc">${keysOf(x[0]).map((c, i) => `<span class="kchip"><button data-a="keyset" data-act="${x[0]}" data-i="${i}">${esc(show(c))}</button><button data-a="keydel" data-act="${x[0]}" data-i="${i}" class="kx" title="Remove this key" aria-label="Remove key ${esc(show(c))}">&times;</button></span>`).join('')}<button data-a="keyset" data-act="${x[0]}" data-i="+" class="kadd" title="Add a key" aria-label="Add a key">+</button></span></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
@@ -2147,7 +2149,7 @@ render();
   try {
     const m = await import('./pkg/cubetimer.js');
     await m.default();
-    ({ scramble, ao5, stats, insp, insp_text } = m);
+    ({ scramble, ao5, stats } = m);   // insp and insp_text stay in JavaScript: the inspection length is a setting
     F = m.fmt;
     render();
     console.log('Rust core loaded');

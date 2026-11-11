@@ -24,9 +24,36 @@
     if (b) { b.classList.toggle('on', st.bt.on || st.sm.on); b.title = 'Timer: ' + line(); }
     const p = document.getElementById('tmst');
     if (p) p.textContent = line();
+    const h = document.getElementById('tmhist');
+    if (h) h.textContent = 'Timer signal: ' + (SM.hist() || 'none yet') + '  (' + SM.ver + ', packets ' + SM.diag.packets + ', restarts ' + SM.restarts() + ')';
   }
+  // ---- small pop-up at the top: only when a timer is connecting, connected or fails (never while idle) ----
+  let toastEl = null, toastT = 0;
+  function toast(text, ms, onClick) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.setAttribute('role', 'status');
+      toastEl.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:3000;max-width:min(92vw,420px);padding:10px 16px;border-radius:12px;background:var(--card,#222);color:var(--fg,#fff);border:1px solid var(--ac,#5b9dff);box-shadow:0 6px 24px #0008;font-size:.95em;text-align:center;cursor:pointer';
+      toastEl.addEventListener('click', () => { const f = toastEl._f; toastEl.hidden = true; if (f) f(); });
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = text; toastEl._f = onClick || null; toastEl.hidden = false;
+    clearTimeout(toastT);
+    if (ms) toastT = setTimeout(() => { toastEl.hidden = true; }, ms);
+  }
+  const hideToast = () => { clearTimeout(toastT); if (toastEl) toastEl.hidden = true; };
+  const CONNECTING = /^(Scanning|Connecting|Waiting for timer|Listening)/;
   const TM = window.TM = {
-    status(src, text, on) { st[src] = { text, on }; paint(); },
+    status(src, text, on) {
+      const was = st[src];
+      st[src] = { text, on }; paint();
+      if (was && was.text === text && was.on === on) return;
+      if (on) toast('Timer connected \u2713', 3500);
+      else if (CONNECTING.test(text)) toast('Timer is trying to connect\u2026', 12000);
+      else if (/^(No reply|No Stackmat|Microphone blocked|Input not found|No microphone)/.test(text)) toast('Timer not connected: ' + text, 6000, () => document.querySelector('[data-a="bt"]').click());
+      else if (was && (was.on || CONNECTING.test(was.text))) hideToast();
+    },
+    toast,
     line
   };
 
@@ -47,12 +74,16 @@ ${on('wired', 'Wired timer (audio cable)', 'Stackmat-style timer on the micropho
   function pageWired(msg) {
     const sel = SM.saved(inputList), cur = sel ? sel.deviceId : (inputList.find(d => d.deviceId === 'default') || inputList[0] || {}).deviceId;
     const have = inputList.length > 0;
+    // "Monitor of ..." entries are copies of speakers / monitors, never a timer: hide them
+    const shown = inputList.filter(d => !/^monitor of /i.test(d.label || ''));
     open(`<div data-tm-page="wired"><h3>Wired timer</h3>
 <p class="lead">1. Plug the timer's cable into the computer's <b>microphone (or line-in)</b> jack, or into a USB sound adapter.<br>2. Switch the timer on.<br>3. Allow the microphone when the browser asks, then pick the input below.</p>
 <p id="tmst" class="lead" role="status"><b>${esc(msg || line())}</b></p>
+<p id="tmhist" class="lead" style="font-size:.85em"></p>
 ${have ? `<label class="lead" for="tmin">Sound input</label>
-<select id="tmin" style="width:100%;margin:4px 0 8px">${inputList.map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === cur ? ' selected' : ''}>${esc(d.label || 'Input ' + (i + 1))}</option>`).join('')}</select>
+<select id="tmin" style="width:100%;margin:4px 0 8px">${shown.map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === cur ? ' selected' : ''}>${esc(d.label || 'Input ' + (i + 1))}</option>`).join('')}</select>
 <div class="row btns"><button data-tm="wgo" class="on">${SM.active() ? 'Listen to this input' : 'Start listening'}</button>${SM.active() ? '<button data-tm="wstop">Stop</button>' : ''}</div>
+<p class="lead">Which one? Use the input of your computer's sound chip (for example "... Audio Controller"), with the cable in the red / pink microphone jack. Not a headset or a "Monitor of" entry. Switch the timer on: the sound level below should move. If it stays at 0%, try the next input.</p>
 <p class="lead">It only works while this input is plugged in. Set the input volume to about 50-100% in your system sound settings.</p>`
   : `<div class="row btns"><button data-tm="wallow" class="on">Allow microphone and find the inputs</button></div>`}</div>`);
   }

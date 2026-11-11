@@ -12,7 +12,7 @@
 
   let ctx = null, stream = null, proc = null, src = null, probeT = 0;
   let heard = false, starting = false, known = 0;
-  let prev = '', lastMs = 0, readyT = 0, running = false;
+  let prev = '', lastMs = 0, readyT = 0, inspT = 0, running = false;
 
   function setStatus(text, on) { if (window.TM) TM.status('sm', text, !!on); }
   const note = t => { const m = document.querySelector('#msg'); if (m && mode === 'idle') m.textContent = t; };
@@ -68,13 +68,35 @@
     };
   }
 
+  // Second way of turning samples into 0/1 levels, for inputs that are AC coupled (most microphone jacks): the signal
+  // then slowly drifts back to zero, so a fixed middle line is wrong. Here only the EDGES count: a big step up
+  // sets 1, a big step down sets 0, and the level is held in between.
+  function EdgeSlicer(sr) {
+    const k = Math.max(2, Math.round(sr / 1200 / 3)), h = new Float32Array(k);
+    let p = 0, pk = 0, lvl = 1;
+    return {
+      run(x) {
+        const out = new Uint8Array(x.length);
+        for (let i = 0; i < x.length; i++) {
+          const v = x[i], d = v - h[p], a = d < 0 ? -d : d;
+          h[p] = v; p = p + 1 === k ? 0 : p + 1;
+          if (a > pk) pk = a; else pk -= pk * 0.00005;
+          if (pk > 0.004) { const t = pk * 0.4; if (d > t) lvl = 1; else if (d < -t) lvl = 0; } else lvl = 1;
+          out[i] = lvl;
+        }
+        return out;
+      },
+      range: () => pk
+    };
+  }
+
   // One decoder set for a stream: every channel, normal and inverted. Whichever gives valid packets wins.
   function Decoder(sr, nch, onPacket, diag) {
-    const sl = [], us = [];
+    const sl = [], us = [];   // sl[c * 2 + s]: level slicer (s = 0) and edge slicer (s = 1) of channel c
     let lock = -1, lastPk = 0, tot = 0;   // lock = the decoder in use; released after 2 s without packets
     for (let c = 0; c < nch; c++) {
-      sl.push(Slicer());
-      for (const inv of [0, 1]) {
+      sl.push(Slicer(), EdgeSlicer(sr));
+      for (const inv of [0, 1]) for (const sx of [0, 1]) {
         const id = us.length;
         // each decoder has its own packet buffer; the first one that gives a valid packet is the only one used
         // (the other channel or polarity would repeat the same packets, in a different order)
@@ -83,19 +105,20 @@
           lock = id; lastPk = tot;
           diag.packets++; onPacket(st, ms);
         });
-        us.push({ c, inv, u: Uart(sr, b => { diag.bytes++; diag.last.push(b); if (diag.last.length > 12) diag.last.shift(); p(b); }) });
+        us.push({ c, sx, inv, u: Uart(sr, b => { diag.bytes++; diag.last.push(b); if (diag.last.length > 12) diag.last.shift(); p(b); }) });
       }
     }
     return chans => {
       tot += chans[0].length;
       if (lock !== -1 && tot - lastPk > sr * 2) lock = -1;
-      const lev = sl.map((z, c) => z.run(chans[c]));
+      const lev = sl.map((z, i) => z.run(chans[i >> 1]));
       let peak = 0;
       for (let c = 0; c < nch; c++) { const x = chans[c]; for (let i = 0; i < x.length; i += 8) { const a = Math.abs(x[i]); if (a > peak) peak = a; } }
       diag.peak = peak;
       for (const o of us) {
-        if (!o.inv) o.u.push(lev[o.c]);
-        else { const a = lev[o.c], b = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) b[i] = a[i] ^ 1; o.u.push(b); }
+        const L = lev[o.c * 2 + o.sx];
+        if (!o.inv) o.u.push(L);
+        else { const a = L, b = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) b[i] = a[i] ^ 1; o.u.push(b); }
       }
     };
   }
@@ -121,7 +144,8 @@
   //  - status 'S' (stopped), or any other status than "running" while a solve runs (hands on the pads again)
   //  - the time stops changing for a few packets
   // 'I' with 0:00.000 is a reset: it also cancels a run that never got its stop.
-  let sameN = 0, lastSeen = -1, doneMs = -1, info = '';
+  let sameN = 0, lastSeen = -1, doneMs = -1, info = '', bothOn = false, restarts = 0;
+  const hist = [];   // the last status changes, shown in the Timer window
   const NAMES = { I: 'reset', A: 'ready', C: 'both hands', L: 'left hand', R: 'right hand', ' ': 'running', S: 'stopped' };
   const fmt = ms => (ms / 1000).toFixed(3);
   function finish(ms) { running = false; doneMs = ms; lastMs = ms; BT.stop(ms); }
@@ -148,6 +172,13 @@
     }
     if (st === was && st !== ' ') return;
     clearTimeout(readyT);
+    hist.push((NAMES[st] || 'status') + '[' + (st === ' ' ? 'space' : st) + '] ' + fmt(ms)); if (hist.length > 10) hist.shift();
+    // ONE pad (the right one) touched alone and then let go, without both hands ever being on: start the inspection.
+    // Both hands on the pads (C / A) and then lifted is the normal start of the solve and never starts an inspection.
+    const side = typeof S !== 'undefined' && S.set && S.set.padsw ? 'L' : 'R';
+    const tapped = was === side && st !== side && st !== 'C' && st !== 'L' && st !== 'R' && st !== ' ' && !bothOn && !stale;
+    if (st === 'C' || st === 'A') bothOn = true; else if (st === 'I' || st === ' ' || st === 'S') bothOn = false;
+    if (tapped && typeof S !== 'undefined' && S.set && (S.set.rins || S.set.insp)) BT.inspect();
     const hold = (typeof S !== 'undefined' && S.set && S.set.hold) || 300;
     if (st === ' ') {
       if (!stale && ms < 3000) { running = true; BT.run(); }
@@ -155,7 +186,7 @@
     else if (st === 'L' || st === 'R') BT.hold();
     else if (st === 'C') { BT.hold(); readyT = setTimeout(BT.ready, hold); }
     else if (st === 'A') BT.ready();
-    else if (st === 'I') BT.idle();
+    else if (st === 'I') { BT.idle(); if (ms === 0) BT.clear(); }
     if (typeof mode !== 'undefined' && mode === 'run' && st !== ' ' && !running) BT.abort();   // the page is stuck in a run the timer does not know about
   }
 
@@ -168,7 +199,7 @@
     if (t.label) lsSet(LAB, t.label);
   }
   function stop() {
-    clearTimeout(probeT); clearTimeout(readyT); clearTimeout(waitT);
+    clearTimeout(probeT); clearTimeout(readyT); clearTimeout(inspT); clearTimeout(waitT);
     try { if (proc) { proc.onaudioprocess = null; proc.disconnect(); } } catch (e) {}
     try { if (src) src.disconnect(); } catch (e) {}
     try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
@@ -194,7 +225,7 @@
   async function start(deviceId, o = {}) {
     if (stream || starting) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setStatus('No microphone support', false); return; }
-    starting = true;
+    starting = true; restarts++;
     try {
       const dv = deviceId ? (o.exact ? { exact: deviceId } : { ideal: deviceId }) : undefined;
       stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: dv, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } } });
@@ -237,17 +268,21 @@
     if (!SM.enabled || stream || starting || !navigator.mediaDevices) return;
     const list = await inputs(), d = saved(list);
     if (d) return start(d.deviceId, { exact: true });          // the input you chose is plugged in
-    if (newOne && lsGet(DEV)) return start(null, { probe: true });   // a new sound input appeared: listen for a few seconds
+    if (newOne) return start(null, { probe: true });   // a new sound input appeared: listen for a few seconds
   }
 
-  const SM = window.SM = { info: () => info, Decoder, Slicer, diag, report, Uart, Packets, onPacket, enabled: false, start, stop, auto, inputs, listInputs, saved, active: () => !!stream, heard: () => heard };
+  const SM = window.SM = { ver: 'wired-2026-11-11d', restarts: () => restarts, hist: () => hist.join('  >  '), info: () => info, Decoder, Slicer, diag, report, Uart, Packets, onPacket, enabled: false, start, stop, auto, inputs, listInputs, saved, active: () => !!stream, heard: () => heard };
 
   document.addEventListener('DOMContentLoaded', async () => {
     known = (await inputs()).length;
     if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
       navigator.mediaDevices.addEventListener('devicechange', async () => {
-        if (!SM.enabled) return;
         const list = await inputs(), more = list.length > known;
+        if (!SM.enabled) {   // wired timer not chosen yet: a new sound input may be the timer, so say how to connect it
+          known = list.length;
+          if (more && window.TM) TM.toast('New sound input plugged in. Is it your timer? Tap here, then pick Wired timer.', 9000, () => document.querySelector('[data-a="bt"]').click());
+          return;
+        }
         known = list.length;
         if (stream) {   // the input we listen to was unplugged?
           const id = lsGet(DEV);

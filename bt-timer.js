@@ -151,11 +151,24 @@
       holding = true; ready = true;
       tm.className = 'ready';
     },
+    inspect() {                       // one pad touched: start the 15 s inspection (like tapping the right half)
+      if (view || mode !== 'idle') return;
+      holding = ready = false;
+      clearTimeout(ht);
+      mode = 'insp';
+      i0 = performance.now();
+      b8 = b12 = 0;
+      pen = 0;
+      ibLabel(); ib.hidden = false;
+      tm.className = 'insp';
+      msg('Inspection: put both hands on the timer, then lift them to start');
+      tick();
+    },
     run() {
       if (view || mode === 'run') return;
       holding = ready = false;
       clearTimeout(ht);
-      pen = 0;
+      pen = mode === 'insp' ? Math.max(0, insp((performance.now() - i0) / 1000)) : 0;   // +2 if inspection went past 15 s
       mode = 'run';
       t0 = performance.now();
       ibLabel(); ib.hidden = false;
@@ -180,12 +193,17 @@
       holding = ready = false;
       clearTimeout(ht);
       if (mode === 'run') { mode = 'idle'; ib.hidden = true; }
-      tm.className = '';
+      tm.className = mode === 'insp' ? 'insp' : '';
+    },
+    clear() {                         // the timer was reset: show 0.00 on the page too
+      if (view || mode !== 'idle') return;
+      tm.textContent = '0.00';
+      msg('');
     },
     idle() {
       if (mode === 'run') return;
       holding = ready = false;
-      tm.className = '';
+      tm.className = mode === 'insp' ? 'insp' : '';
     }
   };
   window.BT = BT;
