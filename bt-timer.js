@@ -240,14 +240,16 @@
 
   // ================= connecting =================
   // The hello needs the timer's real MAC. Chrome can read it from the advertisement; if not, ask.
-  function macFromAdverts(device) {
+  // auto = true: wait (no time limit) until the timer is switched on, then answer. extAc lets another click cancel the wait.
+  function macFromAdverts(device, auto, extAc) {
     return new Promise(res => {
       if (!device.watchAdvertisements) { log('watchAdvertisements: not supported by this browser'); return res(null); }
-      const ac = new AbortController();
+      const ac = extAc || new AbortController();
       let n = 0, mac = null, fin = false;
       const finish = () => {
         if (fin) return; fin = true;
         clearTimeout(to); device.removeEventListener('advertisementreceived', h);
+        if (auto) ac.signal.removeEventListener('abort', finish);
         try { ac.abort(); } catch (e) {}
         log('advertisements seen: ' + n);
         res(mac);
@@ -263,9 +265,10 @@
           for (let i = 5; i >= 0; i--) a.push(dv.getUint8(i).toString(16).padStart(2, '0'));
           mac = a.join(':');
           finish();
-        }
+        } else if (auto) finish();   // timer is on and in range (no MAC in the advert: the saved one is used)
       };
-      const to = setTimeout(finish, 6000);
+      const to = auto ? 0 : setTimeout(finish, 6000);
+      if (auto) ac.signal.addEventListener('abort', finish);
       device.addEventListener('advertisementreceived', h);
       device.watchAdvertisements({ signal: ac.signal }).then(() => log('watching advertisements...')).catch(e => { log('watchAdvertisements failed: ' + e.name + ': ' + e.message); finish(); });
     });
@@ -287,19 +290,21 @@
 
   let connecting = false;
   const hooked = new WeakSet();   // devices that already have the disconnect listener (no duplicates on reconnect)
-  async function connect() {
+  async function connect(known) {
+    const auto = !!known;         // true = automatic reconnect to an already allowed timer: no pop-ups, no prompts
     if (connecting) return;       // a second click while scanning must not start a second connection
     if (!navigator.bluetooth) {
-      alert('Web Bluetooth is not supported here. Use Chrome or Edge on desktop or Android (not Firefox, Safari or iPhone) over HTTPS.');
+      if (!auto) alert('Web Bluetooth is not supported here. Use Chrome or Edge on desktop or Android (not Firefox, Safari or iPhone) over HTTPS.');
       return;
     }
     connecting = true;
     try {
       got = 0; waitPkg = 0; payloadData = [];
       aes = makeAes(new Uint8Array(16).fill(0x77));
-      setStatus('Scanning...');
       const reqOpts = { filters: [{ namePrefix: 'QY-Timer' }, { namePrefix: 'QY-Adapter' }], optionalServices: [SERVICE] };
-      try {
+      if (auto) dev = known;
+      else try {
+        setStatus('Scanning...');
         // ask for a range of company ids so the log can show which one the V2 timer really uses
         dev = await navigator.bluetooth.requestDevice({ ...reqOpts, optionalManufacturerData: Array.from({ length: 256 }, (_, i) => 0x0500 + i) });
       } catch (e) {
@@ -310,15 +315,15 @@
       log('Device: ' + dev.name);
       if (!hooked.has(dev)) {
         hooked.add(dev);
-        dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; });
+        dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; if (!manualOff) setTimeout(autoConnect, 1500); });
       }
 
       setStatus('Connecting...');
-      let mac = await macFromAdverts(dev);
+      let mac = auto ? null : await macFromAdverts(dev);
       log(mac ? 'MAC from advertisement: ' + mac : 'MAC not available from advertisement');
       if (!mac) {
         mac = lsGet('qiyiMac') || defaultMac(dev.name);
-        const ans = prompt('Timer MAC address (like CC:A1:00:00:B4:B2). Press OK to use the suggestion.', mac);
+        const ans = auto ? null : prompt('Timer MAC address (like CC:A1:00:00:B4:B2). Press OK to use the suggestion.', mac);
         if (ans && /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(ans.trim())) mac = ans.trim().toUpperCase();
         log('Using MAC ' + mac);
       }
@@ -342,13 +347,45 @@
       }
       setStatus(got ? 'Connected' : 'No reply');   // click the button again to disconnect
       log(got ? 'Ready. Touch the pads and do a solve.' : 'NO REPLY to either hello. MAC used: ' + mac);
-      if (!got) { closed = false; showLog(); }   // something is wrong: show the log so it can be copied
+      if (!got && !auto) { closed = false; showLog(); }   // something is wrong: show the log so it can be copied
     } catch (err) {
       setStatus('Bluetooth');
       log('Error: ' + err.message);
-      if (err.name !== 'NotFoundError') { closed = false; showLog(); alert('Bluetooth failed: ' + err.message); }
+      if (auto) { dev = null; setTimeout(autoConnect, 5000); }   // timer not ready yet: try again later
+      else if (err.name !== 'NotFoundError') { closed = false; showLog(); alert('Bluetooth failed: ' + err.message); }
     } finally {
       connecting = false;
+    }
+  }
+
+  // ================= automatic connection =================
+  // After the timer was allowed once (the normal Bluetooth button), the browser remembers it. We wait until it is
+  // switched on (it starts advertising), then connect without any click. Needs Chrome/Edge with getDevices().
+  let manualOff = false, autoAc = null, autoBusy = false;
+  async function autoConnect() {
+    if (manualOff || autoBusy || connecting || (dev && dev.gatt && dev.gatt.connected)) return;
+    if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+    autoBusy = true;
+    try {
+      const list = (await navigator.bluetooth.getDevices()).filter(d => /^QY-(Timer|Adapter)/.test(d.name || ''));
+      if (!list.length) return;
+      const d = list[0];
+      if (!d.watchAdvertisements) return;
+      setStatus('Waiting for timer...');
+      log('Auto: waiting for ' + d.name);
+      autoAc = new AbortController();
+      const m = await macFromAdverts(d, true, autoAc);
+      if (m) lsSet('qiyiMac', m);
+      const aborted = autoAc.signal.aborted;
+      autoAc = null;
+      if (aborted || manualOff) { if (!connecting && !(dev && dev.gatt && dev.gatt.connected)) setStatus('Bluetooth'); return; }
+      autoBusy = false;
+      await connect(d);
+    } catch (e) {
+      log('Auto failed: ' + e.message);
+      setStatus('Bluetooth');
+    } finally {
+      autoBusy = false;
     }
   }
 
@@ -357,8 +394,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     const b = btn(); if (!b) return;
     b.addEventListener('click', () => {
-      if (dev && dev.gatt && dev.gatt.connected) { dev.gatt.disconnect(); setStatus('Bluetooth'); }
-      else connect();
+      if (dev && dev.gatt && dev.gatt.connected) { manualOff = true; dev.gatt.disconnect(); setStatus('Bluetooth'); }   // stays off until you click again
+      else { manualOff = false; if (autoAc) autoAc.abort(); connect(); }
     });
+    autoConnect();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) autoConnect(); });
   });
 })();

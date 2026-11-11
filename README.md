@@ -52,6 +52,15 @@ API: `POST /api/recovery/new {password}` (logged in) and `POST /api/recovery/use
 ## Install as an app
 The site has a `manifest.json` and a service worker, so on a phone or in Chrome/Edge you can use "Install app" / "Add to Home Screen".
 
+## Wired Stackmat timer (cable)
+A Stackmat-style timer plugged into the computer's microphone input (3.5 mm cable, or a USB sound adapter) works with no setup (`stackmat.js`):
+
+- The first time a new sound input appears, the browser asks once for microphone access. If a Stackmat signal is heard (turn the timer on), the input is remembered.
+- From then on it connects by itself whenever that input is plugged in and the site is open. The microphone is only opened while that input is present.
+- No Stackmat on the input after 12 seconds: the mic is closed again. The **Stackmat** button in the menu starts listening by hand; click it again to turn it off.
+- Hands on the pads, ready, running and stop work like the spacebar, and the exact time from the timer is saved.
+- Needs HTTPS and a browser with microphone access (Chrome, Edge, Firefox, Safari). Turn the input volume of the sound input to about 50-100% in the system settings.
+
 ## Bluetooth timer debug log
 The Bluetooth log panel stays hidden unless the connection fails. To always show it, open the site with `?btdebug` added to the address, or run `localStorage.setItem('ct2btdebug','1')` in the browser console.
 
