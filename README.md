@@ -52,14 +52,12 @@ API: `POST /api/recovery/new {password}` (logged in) and `POST /api/recovery/use
 ## Install as an app
 The site has a `manifest.json` and a service worker, so on a phone or in Chrome/Edge you can use "Install app" / "Add to Home Screen".
 
-## Wired Stackmat timer (cable)
-A Stackmat-style timer plugged into the computer's microphone input (3.5 mm cable, or a USB sound adapter) works with no setup (`stackmat.js`):
+## Connecting a timer (Timer button)
+The **Timer** button in the menu opens one window to connect a timer. Pick the way once; it is remembered and from then on the timer connects by itself.
 
-- The first time a new sound input appears, the browser asks once for microphone access. If a Stackmat signal is heard (turn the timer on), the input is remembered.
-- From then on it connects by itself whenever that input is plugged in and the site is open. The microphone is only opened while that input is present.
-- No Stackmat on the input after 12 seconds: the mic is closed again. The **Stackmat** button in the menu starts listening by hand; click it again to turn it off.
-- Hands on the pads, ready, running and stop work like the spacebar, and the exact time from the timer is saved.
-- Needs HTTPS and a browser with microphone access (Chrome, Edge, Firefox, Safari). Turn the input volume of the sound input to about 50-100% in the system settings.
+- **Bluetooth timer** (QiYi Smart Timer, `bt-timer.js`): the first time you pick the timer in the browser's Bluetooth chooser. After that it reconnects by itself whenever the timer is switched on and the site is open. Needs Chrome or Edge over HTTPS. If it never says "waiting for the timer", enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` once.
+- **Wired timer** (Stackmat-style, on the microphone / line-in jack or a USB sound adapter, `stackmat.js`): plug it in, switch it on, pick **Wired timer**, allow the microphone and choose the sound input. After that it listens by itself whenever that input is plugged in and the site is open. Hands on the pads, ready, run and stop work like the spacebar, and the exact time from the timer is saved. Set the input volume to about 50-100% in the system sound settings.
+- **Disconnect and use keyboard / touch only** turns both off. Only the chosen way is active: with Bluetooth chosen, the microphone is never opened.
 
 ## Bluetooth timer debug log
 The Bluetooth log panel stays hidden unless the connection fails. To always show it, open the site with `?btdebug` added to the address, or run `localStorage.setItem('ct2btdebug','1')` in the browser console.
@@ -69,6 +67,9 @@ Choose 3x3, then tap **3x3 again** in the cube chooser (or the "3x3 practice mod
 Full solve, Cross, Cross + F2L, F2L (cross already solved), OLL, PLL, Last layer (OLL + PLL), or an Algorithm drill
 (tick exactly the OLL / PLL / F2L algs you want). OLL, PLL and last layer can use all cases, only 2-look, or only the algs you ticked as known in Methods.
 Each mode keeps its own times and records, so your normal 3x3 stats stay clean. The code is in `practice.js`.
+
+## Starting inspection with a tap
+With the setting **Right half of the timer starts the inspection** on (Settings, Timing and sound; on by default), a tap on the right half of the timer starts the 15 s inspection, even if the inspection setting is off. A hold on the left half starts a solve straight away, without inspection. After the inspection starts, hold and release anywhere to start the solve. The keyboard (Space) and the Bluetooth / wired timers are not affected: they follow the "15 s inspection" setting as before. Turn the option off to go back to the old behaviour (a tap anywhere starts the inspection when it is on).
 
 ## Keys (can be changed in Settings)
 Space (hold, release) start/stop · Shift+C cancel inspection or a running solve (Esc also cancels inspection) · Shift+D or Backspace delete last · Shift+Z undo delete · Shift+2 toggle +2 · D toggle DNF · N new scramble · K cubes · M methods · P progress · R records · C calendar · I rules · S settings

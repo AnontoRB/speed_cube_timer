@@ -176,6 +176,12 @@
       tm.className = '';
       add(ms, p, 'bt');
     },
+    abort() {                         // cancel a run that has no stop (timer reset, or the stop was lost)
+      holding = ready = false;
+      clearTimeout(ht);
+      if (mode === 'run') { mode = 'idle'; ib.hidden = true; }
+      tm.className = '';
+    },
     idle() {
       if (mode === 'run') return;
       holding = ready = false;
@@ -280,13 +286,8 @@
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
-  const btn = () => document.querySelector('[data-a="bt"]');
-  function setStatus(text) {
-    const b = btn(); if (!b) return;
-    const tx = b.querySelector('.tx'); if (tx) tx.textContent = text;
-    b.title = text;
-    b.classList.toggle('on', text === 'Connected');
-  }
+  // the menu (timer-menu.js) shows the status
+  function setStatus(text) { if (window.TM) TM.status('bt', text, text === 'Connected'); }
 
   let connecting = false;
   const hooked = new WeakSet();   // devices that already have the disconnect listener (no duplicates on reconnect)
@@ -315,7 +316,7 @@
       log('Device: ' + dev.name);
       if (!hooked.has(dev)) {
         hooked.add(dev);
-        dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; if (!manualOff) setTimeout(autoConnect, 1500); });
+        dev.addEventListener('gattserverdisconnected', () => { setStatus('Bluetooth'); log('Disconnected'); clearTimeout(readyT); BT.idle(); dev = null; if (BT.enabled && !manualOff) setTimeout(autoConnect, 1500); });
       }
 
       setStatus('Connecting...');
@@ -363,7 +364,7 @@
   // switched on (it starts advertising), then connect without any click. Needs Chrome/Edge with getDevices().
   let manualOff = false, autoAc = null, autoBusy = false;
   async function autoConnect() {
-    if (manualOff || autoBusy || connecting || (dev && dev.gatt && dev.gatt.connected)) return;
+    if (!BT.enabled || manualOff || autoBusy || connecting || (dev && dev.gatt && dev.gatt.connected)) return;
     if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
     autoBusy = true;
     try {
@@ -391,13 +392,16 @@
 
   BT._t = { makeAes, crc16, handlePayload, onPacket, sendMessage, setAes: a => { aes = a; }, setW: w => { wChar = w; } };
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const b = btn(); if (!b) return;
-    b.addEventListener('click', () => {
-      if (dev && dev.gatt && dev.gatt.connected) { manualOff = true; dev.gatt.disconnect(); setStatus('Bluetooth'); }   // stays off until you click again
-      else { manualOff = false; if (autoAc) autoAc.abort(); connect(); }
-    });
-    autoConnect();
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) autoConnect(); });
-  });
+  // used by the timer menu
+  BT.enabled = false;                       // the menu switches this on when Bluetooth is the chosen timer
+  BT.connect = () => { manualOff = false; if (autoAc) autoAc.abort(); return connect(); };   // needs a click (browser rule)
+  BT.auto = () => { manualOff = false; return autoConnect(); };                                // no click needed once allowed
+  BT.disconnect = () => {
+    manualOff = true;
+    if (autoAc) autoAc.abort();
+    if (dev && dev.gatt && dev.gatt.connected) dev.gatt.disconnect();
+    setStatus('Bluetooth');
+  };
+  BT.connected = () => !!(dev && dev.gatt && dev.gatt.connected);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) autoConnect(); });
 })();

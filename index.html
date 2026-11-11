@@ -12,6 +12,7 @@
       name="description"
       content="CubeTimer: a speedcubing timer with scrambles, averages, methods and optional sync."
     />
+
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E"
@@ -137,8 +138,8 @@
         </button>
         <button
           data-a="bt"
-          title="Connect Bluetooth Timer"
-          aria-label="Connect Bluetooth Timer"
+          title="Connect a timer"
+          aria-label="Connect a timer"
         >
           <svg
             class="ic"
@@ -150,26 +151,9 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <path d="M6 7l12 10-6 5V2l6 5L6 17" /></svg
-          ><span class="tx">Bluetooth</span>
-        </button>
-        <button
-          data-a="sm"
-          title="Stackmat timer (cable)"
-          aria-label="Stackmat timer (cable)"
-        >
-          <svg
-            class="ic"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5" /></svg
-          ><span class="tx">Stackmat</span>
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2.5 2.5M9 2h6M12 2v3" /></svg
+          ><span class="tx">Timer</span>
         </button>
         <button data-a="acct" title="Log in" aria-label="Account">
           <svg
@@ -266,5 +250,6 @@
     <script src="app.js" defer></script>
     <script src="bt-timer.js" defer></script>
     <script src="stackmat.js" defer></script>
+    <script src="timer-menu.js" defer></script>
   </body>
 </html>

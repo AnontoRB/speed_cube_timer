@@ -59,7 +59,7 @@ const PRE = { dark: { bg: '#14161a', fg: '#eef0f3', ac: '#5b9dff' }, light: { bg
 const th = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 
 const defSet = () => ({
-  theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
+  theme: th, ...PRE[th], rd: '#2ecc71', hd: '#e74c3c', fs: 96, ss: 18, hold: 300, insp: true, rins: true, snd: true, vol: 60, auto: true, hide: false, secs: false, dec: 2, showScr: true, focus: true,
   tone: 'fun', det: 'full', fx: true, fxi: 2, sfx: true, pbm: true, pbS: true, pb5: true, pb12: true, pb50: true, pb100: true, rdy: true, vib: true, brk: true, goal: 20, typing: false, rnd: false,
   tf: 'system', tw: 600, sfm: true, ui: 100, rad: 8, th: 42, showRs: true, showSt: true, showSide: true, showMenu: true, showGoal: true, showSk: true, showWk: true, showTl: true, showRd: true, wallDim: 45, cardOp: 72, sideOp: null, keepScr: 'all'
 });
@@ -1430,6 +1430,11 @@ function tick() {
   raf = requestAnimationFrame(tick);
 }
 
+// Tapping the right half of the timer starts the inspection; the left half starts a solve with no inspection.
+// ptrSide: +1 right half, -1 left half, 0 = keyboard / Bluetooth / inspection already running (use the setting).
+let ptrSide = 0;
+const useInsp = () => (ptrSide ? ptrSide > 0 : S.set.insp);
+
 function down() {
   if (view) return;
   if (mode === 'run') {
@@ -1442,7 +1447,7 @@ function down() {
   }
   holding = true;
   ready = false;
-  const need = mode === 'insp' || !S.set.insp;
+  const need = mode === 'insp' || !useInsp();
   if (need) tm.className = 'hold';
   ht = setTimeout(() => {
     if (holding && need) {
@@ -1458,7 +1463,7 @@ function up() {
   if (!holding) return;
   holding = false;
   clearTimeout(ht);
-  if (mode === 'idle' && S.set.insp) {
+  if (mode === 'idle' && useInsp()) {
     mode = 'insp';
     i0 = performance.now();
     b8 = b12 = 0;
@@ -1481,6 +1486,7 @@ function up() {
     tm.className = mode === 'insp' ? 'insp' : '';
   }
   ready = false;
+  ptrSide = 0;
 }
 
 // ---- Keyboard shortcuts: every action can have one key, several keys or none, and all of them can be changed in Settings ----
@@ -1505,7 +1511,7 @@ const KEYACT = [
   ['cal', 'Calendar', ['C']],
   ['rules', 'Rules and info', ['I']],
   ['acct', 'Account', []],
-  ['bt', 'Bluetooth timer', []],
+  ['bt', 'Timer connection', []],
   ['set', 'Settings', ['S']]
 ];
 const KEYOPEN = { cubes: 'cubes', meth: 'meth', prog: 'progress', rec: 'rec', cal: 'cal', rules: 'rules', set: 'set', acct: 'acct', bt: 'bt', typing: 'typing', rnd: 'rnd' };
@@ -1617,7 +1623,7 @@ document.addEventListener('keydown', e => {
   }
   if (start) {
     e.preventDefault();
-    if (!e.repeat) { startCode = e.code; down(); }
+    if (!e.repeat) { startCode = e.code; ptrSide = 0; down(); }
   } else if (mode === 'run') {
     down();
   }
@@ -1636,6 +1642,11 @@ document.addEventListener('pointerdown', e => {
   if (mode === 'run') { down(); return; }
   if (e.target.closest('#tz') && !e.target.closest('button') && !e.target.closest('#side')) {
     if (S.set.typing && !view) { if (e.target !== ti) setTimeout(() => ti.focus()); return; }
+    ptrSide = 0;
+    if (S.set.rins && mode === 'idle') {   // which half of the timer was pressed?
+      const r = $('#tz').getBoundingClientRect();
+      ptrSide = e.clientX >= r.left + r.width / 2 ? 1 : -1;
+    }
     down();
   }
 });
@@ -1816,7 +1827,7 @@ ${g('Layout', r('ui', 'Interface size (%)', 70, 150, 5) + r('rad', 'Corner round
 ${g('Text', sl('tf', 'Timer font', [['system', 'System'], ['mono', 'Monospace'], ['serif', 'Serif'], ['rounded', 'Rounded']]) + r('tw', 'Timer weight', 300, 800, 100) + r('fs', 'Timer size', 40, 200, 2) + sl('dec', 'Decimals', [[2, '2'], [3, '3']]) + r('ss', 'Scramble size', 12, 36, 1) + c('sfm', 'Monospace scramble'))}
 ${g('Entering solves', c('typing', 'Type times in (no timer, press Enter to save)') + c('rnd', 'Scramble: save as "Random" (no scramble is generated)'))}
 ${g('Saved data', sl('keepScr', 'Keep the scramble of old solves', [['all', 'Forever'], ['365', '1 year'], ['90', '90 days'], ['30', '30 days']]) + '<p class="lead">Older solves keep their times; only the scramble text is dropped, which keeps your saved and synced data small. Recent days are never touched. Dropped scrambles cannot be brought back.</p>')}
-${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
+${g('Timing and sound', r('hold', 'Hold time (ms)', 0, 1000, 50) + c('insp', '15 s inspection') + c('rins', 'Right half of the timer starts the inspection (left half starts a solve without it)') + c('snd', 'Inspection beeps') + r('vol', 'Beep volume (%)', 0, 100, 5) + c('focus', 'Focus mode (hide everything while solving)') + c('hide', 'Hide time while solving') + c('secs', 'Show whole seconds only while solving') + c('auto', 'Auto rounds (new round after each ao5)'))}
 ${g('Reactions and fun', sl('tone', 'Reactions', [['fun', 'Fun (cheers, comfort, playful teasing)'], ['kind', 'Kind (cheers and comfort only)'], ['off', 'Off']]) + sl('det', 'Message detail', [['full', 'Detailed (numbers, comparisons, tips)'], ['short', 'Short (headline only)']]) + c('brk', 'Suggest a break after several slow solves') + r('goal', 'Daily solve goal (0 = off)', 0, 200, 5))}
 ${g('Effects', c('fx', 'Confetti and glow') + r('fxi', 'Effects strength (1 = subtle, 3 = wild)', 1, 3, 1) + c('vib', 'Vibration (phones)') + c('sfx', 'Sound effects') + c('pbm', 'Joyful music on a new PB') + c('pbS', 'Celebrate a new best single') + c('pb5', 'Celebrate a new best ao5') + c('pb12', 'Celebrate a new best ao12') + c('pb50', 'Celebrate a new best ao50') + c('pb100', 'Celebrate a new best ao100') + c('rdy', 'Blip when the timer turns green') + '<div class="row btns"><button data-a="fxtest">Preview effects (closes this window)</button></div>')}
 ${g('Keyboard shortcuts', '<p class="lead" style="margin:0 0 6px">Every action can have one key, several keys, or none. Click a key, then press the keys you want (for example Shift+D, Ctrl+K, F2 or Space). Click it again to cancel. Click + to add another key and × to remove one. A key that another action already uses moves to this one. Tab and Enter cannot be used.</p><p id="kmsg" class="lead" role="status"></p>' + KEYACT.map(x => `<div class="set kr"><span class="lb">${x[1]}</span><span class="kc">${keysOf(x[0]).map((c, i) => `<span class="kchip"><button data-a="keyset" data-act="${x[0]}" data-i="${i}">${esc(show(c))}</button><button data-a="keydel" data-act="${x[0]}" data-i="${i}" class="kx" title="Remove this key" aria-label="Remove key ${esc(show(c))}">&times;</button></span>`).join('')}<button data-a="keyset" data-act="${x[0]}" data-i="+" class="kadd" title="Add a key" aria-label="Add a key">+</button></span></div>`).join('') + '<div class="row btns"><button data-a="keyreset">Reset keys to default</button></div>')}
